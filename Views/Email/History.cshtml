@@ -1,0 +1,114 @@
+@model List<JobAutomation.Models.GeneratedEmail>
+@{
+    ViewData["Title"] = "Email History";
+    ViewData["Subtitle"] = "Track all generated and sent emails";
+}
+
+<!-- Filters -->
+<div class="filter-bar">
+    <form method="get" class="filter-form" id="filterForm">
+        <div class="filter-search">
+            <i class="bi bi-search"></i>
+            <input type="text" name="search" class="form-control" placeholder="Search emails..."
+                   value="@ViewBag.Search" />
+        </div>
+        <div class="filter-selects">
+            <select name="status" class="form-select" onchange="document.getElementById('filterForm').submit()">
+                <option value="">All</option>
+                <option value="sent" selected="@(ViewBag.Status == "sent" ? "selected" : null)">✅ Sent</option>
+                <option value="approved" selected="@(ViewBag.Status == "approved" ? "selected" : null)">✔ Approved</option>
+                <option value="pending" selected="@(ViewBag.Status == "pending" ? "selected" : null)">⏳ Pending</option>
+                <option value="failed" selected="@(ViewBag.Status == "failed" ? "selected" : null)">❌ Failed</option>
+            </select>
+        </div>
+        <a href="@Url.Action("Export")" class="btn btn-outline-light">
+            <i class="bi bi-download me-1"></i> Export CSV
+        </a>
+    </form>
+</div>
+
+<div class="table-card">
+    @if (Model.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-envelope-x"></i></div>
+            <h3>No emails yet</h3>
+            <p>Process a job post to generate your first email.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Role</th>
+                        <th>Recipient</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                        <th>Sent Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var email in Model)
+                    {
+                        <tr>
+                            <td>
+                                <div class="company-cell">
+                                    <div class="company-avatar">@(email.JobPost?.CompanyName?[0] ?? '?')</div>
+                                    <span>@(email.JobPost?.CompanyName ?? "N/A")</span>
+                                </div>
+                            </td>
+                            <td>@(email.JobPost?.Role ?? "N/A")</td>
+                            <td><span class="email-address">@email.RecipientEmail</span></td>
+                            <td><span class="subject-text" title="@email.Subject">@(email.Subject.Length > 40 ? email.Subject[..40] + "..." : email.Subject)</span></td>
+                            <td>
+                                @if (email.IsSent)
+                                {
+                                    <span class="status-badge status-sent"><i class="bi bi-check-circle-fill"></i> Sent</span>
+                                }
+                                else if (email.ErrorMessage != null)
+                                {
+                                    <span class="status-badge status-failed"><i class="bi bi-x-circle-fill"></i> Failed</span>
+                                }
+                                else if (email.IsApproved)
+                                {
+                                    <span class="status-badge status-approved"><i class="bi bi-check2-circle"></i> Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge status-pending"><i class="bi bi-hourglass-split"></i> Draft</span>
+                                }
+                            </td>
+                            <td>
+                                @if (email.SentAt.HasValue)
+                                {
+                                    <span title="@email.SentAt?.ToString("f")">@email.SentAt?.ToString("MMM dd, HH:mm")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <a href="@Url.Action("Preview", new { id = email.JobPostId })" class="btn btn-sm btn-action" title="View">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                @if (!email.IsSent && email.ErrorMessage != null)
+                                {
+                                    <form method="post" asp-action="Retry" asp-route-id="@email.JobPostId" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-warning" title="Retry">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,110 @@
+using Microsoft.EntityFrameworkCore;
+using JobAutomation.Data;
+using JobAutomation.Services;
+using JobAutomation.Models;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<JobAutomation.Filters.PasscodeAuthFilter>();
+});
+
+// Database
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// HTTP Client
+builder.Services.AddHttpClient<GeminiService>();
+builder.Services.AddHttpClient<TelegramService>();
+
+// Application Services
+builder.Services.AddScoped<GeminiService>();
+builder.Services.AddScoped<ResumeMatchingService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<JobProcessingService>();
+builder.Services.AddScoped<TelegramService>();
+
+// JSON options
+builder.Services.AddControllers()
+    .AddNewtonsoftJson(options =>
+    {
+        options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
+    });
+
+var app = builder.Build();
+
+// Ensure database is created and migrations are applied
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        // Generate the creation DDL script from our EF model
+        var sql = db.Database.GenerateCreateScript();
+
+        // Split DDL by semicolon to execute each statement separately.
+        // If a table, index, or constraint already exists, PostgreSQL will throw an error for that statement,
+        // but we catch and ignore it, allowing the remaining missing tables to be created successfully.
+        var statements = sql.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var rawStatement in statements)
+        {
+            var statement = rawStatement.Trim();
+            if (string.IsNullOrWhiteSpace(statement)) continue;
+
+            try
+            {
+                db.Database.ExecuteSqlRaw(statement);
+            }
+            catch (Exception ex)
+            {
+                // Expected when a table/constraint/index already exists
+                Console.WriteLine($"Database initialization statement skipped or already applied: {ex.Message}");
+            }
+        }
+
+        // Manually seed the default profile since GenerateCreateScript doesn't output INSERT statements
+        try
+        {
+            if (!db.UserProfiles.Any())
+            {
+                db.UserProfiles.Add(new UserProfile
+                {
+                    Id = 1,
+                    FullName = "Chaitanya Mallelli",
+                    Email = "MallelliChaitanya5@gmail.com",
+                    Phone = "+91 9390981596",
+                    LinkedInUrl = "https://www.linkedin.com/in/chaitanya-mallelli-7a9b76204/"
+                });
+                db.SaveChanges();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to seed default user profile: {ex.Message}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Critical database initialization error: {ex.Message}");
+    }
+}
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+}
+
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Dashboard}/{action=Index}/{id?}");
+
+app.MapControllers(); // For API controllers (Telegram webhook)
+
+app.Run();

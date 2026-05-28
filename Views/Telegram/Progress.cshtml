@@ -1,0 +1,397 @@
+@{
+    ViewData["Title"] = "Live Activity Tracker";
+    ViewData["Subtitle"] = "Real-time pipeline monitoring for your Telegram bot";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Live Status Card -->
+        <div class="detail-card" style="position: relative; overflow: hidden; min-height: 520px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(20, 27, 45, 0.7); backdrop-filter: blur(15px); box-shadow: var(--shadow-lg);">
+            <!-- Futuristic radial grid background -->
+            <div style="position: absolute; inset: 0; opacity: 0.03; background-image: radial-gradient(var(--color-accent) 1px, transparent 1px); background-size: 20px 20px; pointer-events: none;"></div>
+            
+            <!-- Neon glow accents -->
+            <div style="position: absolute; top: -100px; left: -100px; width: 300px; height: 300px; background: rgba(99, 102, 241, 0.15); filter: blur(80px); border-radius: 50%; pointer-events: none;"></div>
+            <div style="position: absolute; bottom: -100px; right: -100px; width: 300px; height: 300px; background: rgba(168, 85, 247, 0.12); filter: blur(80px); border-radius: 50%; pointer-events: none;"></div>
+
+            <div class="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom border-secondary">
+                <h5 class="detail-card-title mb-0 fs-5 fw-bold" style="letter-spacing: -0.5px;">
+                    <i class="bi bi-cpu-fill text-accent-light animate-pulse" style="animation: pulse 1.5s infinite;"></i> Telegram Automation Pipeline
+                </h5>
+                <span class="status-badge status-pending px-3 py-1.5" id="pipelineState" style="font-weight: 600; letter-spacing: 0.5px;">
+                    <span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px; color: var(--color-warning);"></span> Listening for Updates
+                </span>
+            </div>
+
+            <!-- Empty State (No Active Job) -->
+            <div id="emptyTracker" class="empty-state py-5 text-center">
+                <div class="empty-icon mb-4" style="font-size: 64px; color: var(--color-text-muted);">
+                    <i class="bi bi-rss-fill animate-pulse" style="animation: pulse 2s infinite; color: var(--color-accent-light); filter: drop-shadow(0 0 15px var(--color-accent-glow));"></i>
+                </div>
+                <h4 class="text-white fw-bold mb-2">Awaiting Telegram Input</h4>
+                <p class="text-muted text-sm mx-auto mb-4" style="max-width: 440px; line-height: 1.6;">
+                    Send a text job post, LinkedIn screenshot, or PDF description to your bot. 
+                    This dashboard will instantly intercept the message and track the pipeline in real time.
+                </p>
+                <div>
+                    <a href="https://t.me/your_bot" target="_blank" id="botLaunchLink" class="btn btn-glow rounded-pill px-4 text-sm fw-bold">
+                        <i class="bi bi-telegram me-1"></i> Open Telegram Bot Chat
+                    </a>
+                </div>
+            </div>
+
+            <!-- Active Tracker Steps -->
+            <div id="activeTracker" style="display: none;">
+                <!-- Header Info Bar -->
+                <div class="p-3 mb-4 rounded border" style="background: rgba(15, 23, 42, 0.4); border-color: rgba(255, 255, 255, 0.06) !important; backdrop-filter: blur(5px);">
+                    <div class="row text-sm g-2">
+                        <div class="col-sm-6">
+                            <span class="text-muted d-block text-xs uppercase fw-bold" style="letter-spacing: 1px;">ACTIVE SENDER ID</span>
+                            <span class="fw-bold text-white fs-6" id="chatIdLabel">—</span>
+                        </div>
+                        <div class="col-sm-6 text-sm-end">
+                            <span class="text-muted d-block text-xs uppercase fw-bold" style="letter-spacing: 1px;">JOB STATUS CARD</span>
+                            <span class="fw-bold text-white fs-6" id="jobIdLabel">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Structured Stepper -->
+                <div class="pipeline-stepper position-relative ps-4 ms-2 mt-4" style="border-left: 2px solid rgba(255, 255, 255, 0.08);">
+                    
+                    <!-- Step 1 -->
+                    <div class="step-card step-inactive" id="stepCard1">
+                        <div class="step-dot"><i class="bi bi-circle"></i></div>
+                        <div class="step-header">Step 1: Input Detection</div>
+                        <div class="step-subheader" id="stepSub1">Waiting for file or text message...</div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="step-card step-inactive" id="stepCard2">
+                        <div class="step-dot"><i class="bi bi-circle"></i></div>
+                        <div class="step-header">Step 2: Gemini AI Extraction</div>
+                        <div class="step-subheader" id="stepSub2">Extracting company, role, requirements, and recruiter details...</div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="step-card step-inactive" id="stepCard3">
+                        <div class="step-dot"><i class="bi bi-circle"></i></div>
+                        <div class="step-header">Step 3: Skill Matching & ATS Analysis</div>
+                        <div class="step-subheader" id="stepSub3">Calculating skill similarity and ATS optimization score...</div>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="step-card step-inactive" id="stepCard4">
+                        <div class="step-dot"><i class="bi bi-circle"></i></div>
+                        <div class="step-header">Step 4: AI Email Draft Synthesis</div>
+                        <div class="step-subheader" id="stepSub4">Composing personalized outreach draft matching your profile...</div>
+                    </div>
+
+                    <!-- Step 5 -->
+                    <div class="step-card step-inactive" id="stepCard5">
+                        <div class="step-dot"><i class="bi bi-circle"></i></div>
+                        <div class="step-header">Step 5: Interactive Approval Loop</div>
+                        <div class="step-subheader" id="stepSub5">Awaiting decision card confirmation on Telegram...</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Pulse micro-animation */
+    @@keyframes pulse {
+        0% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.06); opacity: 1; }
+        100% { transform: scale(1); opacity: 0.5; }
+    }
+    .animate-pulse {
+        animation: pulse 2s infinite ease-in-out;
+    }
+
+    /* Stepper Styling */
+    .pipeline-stepper {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .step-card {
+        position: relative;
+        padding: 12px 18px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Step Dots on Timeline */
+    .step-dot {
+        position: absolute;
+        left: -29px;
+        top: 16px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--color-bg-card);
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        color: var(--color-text-muted);
+        transition: all 0.4s ease;
+    }
+
+    .step-header {
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--color-text-primary);
+        letter-spacing: -0.2px;
+        margin-bottom: 2px;
+        transition: color 0.3s ease;
+    }
+
+    .step-subheader {
+        font-size: 13px;
+        color: var(--color-text-muted);
+        transition: color 0.3s ease;
+        line-height: 1.4;
+    }
+
+    /* Active Processing State */
+    .step-active-now {
+        background: rgba(99, 102, 241, 0.05);
+        border-color: rgba(99, 102, 241, 0.2);
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.08);
+    }
+    .step-active-now .step-dot {
+        border-color: var(--color-accent);
+        background: var(--color-accent-bg);
+        color: var(--color-accent-light);
+        box-shadow: 0 0 12px var(--color-accent-glow);
+        transform: scale(1.15);
+    }
+    .step-active-now .step-header {
+        color: var(--color-accent-light);
+    }
+    .step-active-now .step-subheader {
+        color: var(--color-text-secondary);
+    }
+
+    /* Completed Success State */
+    .step-completed {
+        background: rgba(34, 197, 94, 0.03);
+        border-color: rgba(34, 197, 94, 0.12);
+    }
+    .step-completed .step-dot {
+        border-color: var(--color-success);
+        background: var(--color-success-bg);
+        color: var(--color-success);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
+    }
+    .step-completed .step-header {
+        color: var(--color-text-primary);
+    }
+    .step-completed .step-subheader {
+        color: var(--color-text-secondary);
+    }
+
+    /* Error Failed State */
+    .step-failed-now {
+        background: rgba(239, 68, 68, 0.04);
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    .step-failed-now .step-dot {
+        border-color: var(--color-danger);
+        background: var(--color-danger-bg);
+        color: var(--color-danger);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+    .step-failed-now .step-header {
+        color: var(--color-danger);
+    }
+    .step-failed-now .step-subheader {
+        color: var(--color-danger);
+    }
+
+    /* Faded Inactive State */
+    .step-inactive {
+        opacity: 0.5;
+    }
+    .step-inactive .step-dot {
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let lastStepsHash = "";
+
+        async function pollStatus() {
+            try {
+                const response = await fetch('/Telegram/GetLiveStatus');
+                if (!response.ok) return;
+
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    document.getElementById("emptyTracker").style.display = "block";
+                    document.getElementById("activeTracker").style.display = "none";
+                    
+                    const stateBadge = document.getElementById("pipelineState");
+                    stateBadge.className = "status-badge status-pending";
+                    stateBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px; color: var(--color-warning);"></span> Listening for Updates`;
+                    return;
+                }
+
+                // Show active pipeline (use the most recent execution)
+                const activeProcess = data[data.length - 1];
+                
+                document.getElementById("emptyTracker").style.display = "none";
+                document.getElementById("activeTracker").style.display = "block";
+
+                document.getElementById("chatIdLabel").innerText = activeProcess.chatId;
+                
+                if (activeProcess.jobId && activeProcess.jobId > 0) {
+                    document.getElementById("jobIdLabel").innerHTML = `<a href="/Email/Preview/${activeProcess.jobId}" class="text-accent-light fw-bold text-decoration-none"><i class="bi bi-eye"></i> Job #${activeProcess.jobId}</a>`;
+                } else {
+                    document.getElementById("jobIdLabel").innerText = "Extracting... ⏳";
+                }
+
+                const steps = activeProcess.steps || [];
+                
+                // Build unique hash to prevent redundant DOM updates
+                const currentHash = JSON.stringify(steps) + "_" + activeProcess.jobId;
+                if (currentHash === lastStepsHash) return;
+                lastStepsHash = currentHash;
+
+                // Reset all steps to inactive
+                for (let i = 1; i <= 5; i++) {
+                    const card = document.getElementById(`stepCard${i}`);
+                    card.className = "step-card step-inactive";
+                    card.querySelector(".step-dot").innerHTML = '<i class="bi bi-circle"></i>';
+                }
+
+                let currentRunningStep = 0;
+                let isAnyFailed = false;
+
+                steps.forEach((step) => {
+                    let stepNum = 0;
+                    if (step.startsWith("Step 1")) stepNum = 1;
+                    else if (step.startsWith("Step 2")) stepNum = 2;
+                    else if (step.startsWith("Step 3")) stepNum = 3;
+                    else if (step.startsWith("Step 4")) stepNum = 4;
+                    else if (step.startsWith("Step 5")) stepNum = 5;
+                    else if (step.startsWith("Step 6")) stepNum = 6; // Sent state
+
+                    if (stepNum === 0) return;
+
+                    let status = "completed"; // Default to success/completed
+                    let cleanText = step;
+                    let iconHtml = '<i class="bi bi-check-lg"></i>';
+
+                    if (step.endsWith("⏳")) {
+                        status = "pending";
+                        iconHtml = '<span class="spinner-border spinner-border-sm" style="width: 10px; height: 10px;"></span>';
+                        cleanText = step.substring(0, step.length - 2);
+                        currentRunningStep = stepNum;
+                    } else if (step.endsWith("✅")) {
+                        status = "completed";
+                        iconHtml = '<i class="bi bi-check-lg"></i>';
+                        cleanText = step.substring(0, step.length - 2);
+                    } else if (step.endsWith("❌")) {
+                        status = "failed";
+                        iconHtml = '<i class="bi bi-x-lg"></i>';
+                        cleanText = step.substring(0, step.length - 2);
+                        isAnyFailed = true;
+                    } else if (step.endsWith("⚠️")) {
+                        status = "completed"; // Treat warnings as completed with symbol
+                        iconHtml = '<i class="bi bi-exclamation-triangle-fill"></i>';
+                        cleanText = step.substring(0, step.length - 2);
+                    }
+
+                    // Remove leading "Step X:" for subheaders
+                    const colonIndex = cleanText.indexOf(':');
+                    if (colonIndex >= 0) {
+                        cleanText = cleanText.substring(colonIndex + 1).trim();
+                    }
+
+                    if (stepNum <= 5) {
+                        const card = document.getElementById(`stepCard${stepNum}`);
+                        const subHeader = document.getElementById(`stepSub${stepNum}`);
+                        
+                        subHeader.innerText = cleanText;
+
+                        if (status === "completed") {
+                            card.className = "step-card step-completed";
+                            card.querySelector(".step-dot").innerHTML = iconHtml;
+                        } else if (status === "pending") {
+                            card.className = "step-card step-active-now animate-pulse";
+                            card.querySelector(".step-dot").innerHTML = iconHtml;
+                        } else if (status === "failed") {
+                            card.className = "step-card step-failed-now";
+                            card.querySelector(".step-dot").innerHTML = iconHtml;
+                        }
+                    } else if (stepNum === 6) {
+                        // This indicates approval complete / mail sent!
+                        const card5 = document.getElementById("stepCard5");
+                        const sub5 = document.getElementById("stepSub5");
+                        if (status === "completed") {
+                            card5.className = "step-card step-completed";
+                            card5.querySelector(".step-dot").innerHTML = '<i class="bi bi-send-check-fill"></i>';
+                            sub5.innerHTML = `<b>Approved!</b> ${cleanText}`;
+                        } else if (status === "pending") {
+                            card5.className = "step-card step-active-now";
+                            card5.querySelector(".step-dot").innerHTML = '<span class="spinner-border spinner-border-sm" style="width: 10px; height: 10px;"></span>';
+                            sub5.innerHTML = `<b>Processing Approval...</b> ${cleanText}`;
+                        } else if (status === "failed") {
+                            card5.className = "step-card step-failed-now";
+                            card5.querySelector(".step-dot").innerHTML = '<i class="bi bi-x-circle-fill"></i>';
+                            sub5.innerHTML = `<b>Approval failed:</b> ${cleanText}`;
+                        }
+                    }
+                });
+
+                // Update pipeline status badge
+                const stateBadge = document.getElementById("pipelineState");
+                if (isAnyFailed) {
+                    stateBadge.className = "status-badge status-failed px-3 py-1.5";
+                    stateBadge.innerHTML = `<i class="bi bi-x-circle-fill"></i> Execution Failed`;
+                } else if (currentRunningStep > 0) {
+                    stateBadge.className = "status-badge status-ready px-3 py-1.5";
+                    stateBadge.innerHTML = `<span class="spinner-border spinner-border-sm me-1" style="width: 10px; height: 10px;"></span> Step ${currentRunningStep} in Progress`;
+                } else {
+                    stateBadge.className = "status-badge status-sent px-3 py-1.5";
+                    stateBadge.innerHTML = `<i class="bi bi-check-circle-fill"></i> Done`;
+                }
+
+            } catch (err) {
+                console.error("Failed to poll status", err);
+            }
+        }
+
+        // Fetch bot profile details and setup
+        async function loadBotProfile() {
+            try {
+                const response = await fetch('/Telegram');
+                const text = await response.text();
+                const parser = new DOMParser();
+                const htmlDoc = parser.parseFromString(text, 'text/html');
+                const botLink = htmlDoc.querySelector("a[href*='t.me']");
+                if (botLink) {
+                    const launchBtn = document.getElementById("botLaunchLink");
+                    launchBtn.href = botLink.href;
+                    launchBtn.innerHTML = `<i class="bi bi-telegram me-1"></i> Open Chat (${botLink.innerText.trim()})`;
+                }
+            } catch (e) {}
+        }
+
+        // Poll immediately and then every 1 second
+        pollStatus();
+        loadBotProfile();
+        setInterval(pollStatus, 1000);
+    </script>
+}

@@ -1,0 +1,190 @@
+@{
+    ViewData["Title"] = "Upload Job Post";
+    ViewData["Subtitle"] = "Upload a screenshot, PDF, or paste text to extract job details";
+}
+
+<div class="upload-container">
+    <!-- Tab Navigation -->
+    <ul class="nav nav-pills upload-tabs" id="uploadTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="file-tab" data-bs-toggle="pill" data-bs-target="#fileUpload" type="button" role="tab">
+                <i class="bi bi-image me-2"></i> Screenshot / PDF
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="text-tab" data-bs-toggle="pill" data-bs-target="#textUpload" type="button" role="tab">
+                <i class="bi bi-card-text me-2"></i> Paste Text
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="uploadTabContent">
+        <!-- File Upload Tab -->
+        <div class="tab-pane fade show active" id="fileUpload" role="tabpanel">
+            <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="fileForm">
+                <div class="upload-zone" id="dropZone">
+                    <input type="file" name="file" id="fileInput" accept="image/*,.pdf" class="d-none" />
+                    <div class="upload-zone-content" id="uploadContent">
+                        <div class="upload-icon-wrapper">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <h4>Drop your file here</h4>
+                        <p>or <span class="upload-browse" onclick="document.getElementById('fileInput').click()">browse</span> to choose</p>
+                        <div class="upload-formats">
+                            <span class="format-badge"><i class="bi bi-file-image"></i> PNG</span>
+                            <span class="format-badge"><i class="bi bi-file-image"></i> JPG</span>
+                            <span class="format-badge"><i class="bi bi-file-image"></i> WEBP</span>
+                            <span class="format-badge"><i class="bi bi-file-pdf"></i> PDF</span>
+                        </div>
+                    </div>
+                    <div class="upload-preview d-none" id="filePreview">
+                        <i class="bi bi-file-earmark-check preview-icon"></i>
+                        <span class="preview-name" id="fileName"></span>
+                        <span class="preview-size" id="fileSize"></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
+                            <i class="bi bi-x-lg"></i> Remove
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-submit d-none" id="fileSubmitSection">
+                    <button type="submit" class="btn btn-glow btn-lg" id="processFileBtn">
+                        <i class="bi bi-magic me-2"></i> Process with AI
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Text Upload Tab -->
+        <div class="tab-pane fade" id="textUpload" role="tabpanel">
+            <form method="post" asp-action="ProcessText">
+                <div class="text-upload-card">
+                    <div class="text-input-wrapper">
+                        <textarea name="jobText" class="form-control text-area-large" id="jobTextInput"
+                                  placeholder="Paste the job posting text here...&#10;&#10;Example:&#10;Company: Acme Corp&#10;Role: Software Engineer&#10;Location: Remote&#10;Skills: C#, ASP.NET Core, SQL Server&#10;Experience: 3-5 years&#10;Email: hr@acmecorp.com"
+                                  rows="12"></textarea>
+                        <div class="text-counter">
+                            <span id="charCount">0</span> characters
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-glow btn-lg mt-3" id="processTextBtn">
+                        <i class="bi bi-magic me-2"></i> Process with AI
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- How it works -->
+<div class="how-it-works">
+    <h5 class="section-title"><i class="bi bi-lightning-charge-fill"></i> How It Works</h5>
+    <div class="steps-grid">
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+            <h6>Upload</h6>
+            <p>Upload a screenshot, PDF, or paste job post text</p>
+        </div>
+        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
+        <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-icon"><i class="bi bi-robot"></i></div>
+            <h6>AI Extracts</h6>
+            <p>Gemini AI reads and extracts company, role, skills</p>
+        </div>
+        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
+        <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-icon"><i class="bi bi-envelope-paper"></i></div>
+            <h6>Email Generated</h6>
+            <p>Professional email drafted with your real skills</p>
+        </div>
+        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
+        <div class="step-card">
+            <div class="step-number">4</div>
+            <div class="step-icon"><i class="bi bi-send-check"></i></div>
+            <h6>Review & Send</h6>
+            <p>Edit, approve, and send via Gmail</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Drag and drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadContent = document.getElementById('uploadContent');
+        const filePreview = document.getElementById('filePreview');
+        const fileSubmitSection = document.getElementById('fileSubmitSection');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'));
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'));
+        });
+
+        dropZone.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                fileInput.files = e.dataTransfer.files;
+                showFilePreview(file);
+            }
+        });
+
+        fileInput.addEventListener('change', e => {
+            if (e.target.files[0]) showFilePreview(e.target.files[0]);
+        });
+
+        function showFilePreview(file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatSize(file.size);
+            uploadContent.classList.add('d-none');
+            filePreview.classList.remove('d-none');
+            fileSubmitSection.classList.remove('d-none');
+        }
+
+        function clearFile() {
+            fileInput.value = '';
+            uploadContent.classList.remove('d-none');
+            filePreview.classList.add('d-none');
+            fileSubmitSection.classList.add('d-none');
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        // Character counter
+        const textArea = document.getElementById('jobTextInput');
+        const charCount = document.getElementById('charCount');
+        if (textArea && charCount) {
+            textArea.addEventListener('input', () => {
+                charCount.textContent = textArea.value.length;
+            });
+        }
+
+        // Loading states
+        document.getElementById('fileForm')?.addEventListener('submit', function() {
+            const btn = document.getElementById('processFileBtn');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+            btn.disabled = true;
+        });
+
+        document.querySelector('#textUpload form')?.addEventListener('submit', function() {
+            const btn = document.getElementById('processTextBtn');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+            btn.disabled = true;
+        });
+    </script>
+}

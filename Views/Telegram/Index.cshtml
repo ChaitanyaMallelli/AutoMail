@@ -1,0 +1,232 @@
+@{
+    ViewData["Title"] = "Telegram Integration";
+    ViewData["Subtitle"] = "Receive job posts and screenshots directly via Telegram";
+    
+    var botToken = ViewBag.BotToken as string;
+    var configuredWebhookUrl = ViewBag.ConfiguredWebhookUrl as string;
+    var botInfo = ViewBag.BotInfo as Newtonsoft.Json.Linq.JObject;
+    var webhookInfo = ViewBag.WebhookInfo as Newtonsoft.Json.Linq.JObject;
+
+    bool isBotConnected = botInfo != null && (bool?)botInfo["ok"] == true;
+    bool isWebhookActive = webhookInfo != null && (bool?)webhookInfo["ok"] == true && !string.IsNullOrEmpty(webhookInfo["result"]?["url"]?.ToString());
+    
+    string botUsername = botInfo?["result"]?["username"]?.ToString() ?? "";
+    string botFirstName = botInfo?["result"]?["first_name"]?.ToString() ?? "";
+    
+    string activeWebhookUrl = webhookInfo?["result"]?["url"]?.ToString() ?? "";
+    int pendingUpdates = (int?)webhookInfo?["result"]?["pending_update_count"] ?? 0;
+    string lastErrorDate = webhookInfo?["result"]?["last_error_date"]?.ToString() ?? "";
+    string lastErrorMessage = webhookInfo?["result"]?["last_error_message"]?.ToString() ?? "";
+}
+
+<div class="row g-4">
+    <!-- Webhook Control Panel -->
+    <div class="col-lg-7">
+        <!-- Bot Profile Status Card -->
+        <div class="detail-card mb-4" style="position: relative; overflow: hidden;">
+            <div style="position: absolute; right: -20px; top: -20px; font-size: 120px; opacity: 0.05; color: var(--color-info); transform: rotate(15deg); pointer-events: none;">
+                <i class="bi bi-telegram"></i>
+            </div>
+            
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-robot"></i> Telegram Bot Status
+            </h5>
+
+            @if (isBotConnected)
+            {
+                <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded" style="background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15);">
+                    <div class="company-avatar" style="width: 48px; height: 48px; background: linear-gradient(135deg, #24A1DE, #1C82B6); font-size: 22px;">
+                        <i class="bi bi-telegram"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-white fs-5">@botFirstName</div>
+                        <div class="text-sm" style="color: var(--color-info);">
+                            <a href="https://t.me/@botUsername" target="_blank" class="text-decoration-none" style="color: inherit;">
+                                <i class="bi bi-link-45deg"></i> @("@" + botUsername)
+                            </a>
+                        </div>
+                    </div>
+                    <div class="ms-auto">
+                        <span class="status-badge status-sent">
+                            <i class="bi bi-check-circle-fill"></i> Connected
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-3 text-sm mb-2">
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">Bot Username</span>
+                        <span class="fw-medium text-white">@("@" + botUsername)</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="text-muted d-block">Bot Token</span>
+                        <span class="fw-medium text-white" style="font-family: monospace;">
+                            @(string.IsNullOrEmpty(botToken) ? "Not configured" : botToken.Substring(0, Math.Min(botToken.Length, 10)) + "..." + botToken.Substring(Math.Max(0, botToken.Length - 5)))
+                        </span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0" style="color: var(--color-danger);"></i>
+                    <div>
+                        <h6 class="alert-heading fw-bold mb-1">Bot Not Connected</h6>
+                        <p class="mb-0 text-sm opacity-90">Could not fetch bot details from Telegram. Please check that your <strong>BotToken</strong> is configured correctly in <code>appsettings.json</code>.</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Webhook Configuration Card -->
+        <div class="detail-card">
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-hdd-network"></i> Webhook Configuration
+            </h5>
+
+            @if (isWebhookActive)
+            {
+                <div class="mb-4 p-3 rounded" style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-white">Active Webhook URL</span>
+                        <span class="status-badge status-sent">
+                            <i class="bi bi-check-circle-fill"></i> Active
+                        </span>
+                    </div>
+                    <code class="d-block p-2 rounded text-break bg-dark text-success text-sm mb-3" style="border: 1px solid var(--color-border);">@activeWebhookUrl</code>
+                    
+                    <div class="row g-3 text-sm">
+                        <div class="col-sm-6">
+                            <span class="text-muted d-block">Pending Updates</span>
+                            <span class="fw-bold text-white fs-6">@pendingUpdates</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(lastErrorMessage))
+                        {
+                            <div class="col-12 mt-3">
+                                <span class="text-danger fw-bold d-block mb-1">
+                                    <i class="bi bi-exclamation-circle-fill"></i> Last Error
+                                </span>
+                                <div class="p-2 rounded bg-danger-subtle text-danger-emphasis text-sm">
+                                    @lastErrorMessage
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="mb-4 p-3 rounded" style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.15);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-white">Webhook Status</span>
+                        <span class="status-badge status-pending">
+                            <i class="bi bi-exclamation-circle"></i> Inactive / None Registered
+                        </span>
+                    </div>
+                    <p class="text-muted text-sm mt-2 mb-0">Telegram will not send job updates to this application until a secure, public HTTPS webhook URL is registered.</p>
+                </div>
+            }
+
+            <form method="post" asp-action="Register" class="mt-4">
+                <div class="mb-3">
+                    <label class="form-label text-white fw-bold">Set Webhook URL</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-shield-lock-fill"></i></span>
+                        <input type="url" name="webhookUrl" class="form-control bg-dark border-secondary text-white" 
+                               placeholder="https://xxxx.ngrok-free.app" 
+                               value="@(string.IsNullOrEmpty(configuredWebhookUrl) || configuredWebhookUrl.Contains("your-domain.com") ? "" : configuredWebhookUrl)" required />
+                    </div>
+                    <div class="form-text text-muted">
+                        Enter your public HTTPS URL (e.g. from ngrok). We will append <code>/api/telegram/webhook</code> automatically.
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-glow flex-fill">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Register Webhook
+                    </button>
+                    @if (isWebhookActive)
+                    {
+                        <button type="submit" form="deleteForm" class="btn btn-outline-danger px-3" title="Unregister Webhook">
+                            <i class="bi bi-trash-fill"></i> Unregister
+                        </button>
+                    }
+                </div>
+            </form>
+
+            <form id="deleteForm" method="post" asp-action="Delete" style="display:none;"></form>
+        </div>
+    </div>
+
+    <!-- Step-by-Step Setup Guide -->
+    <div class="col-lg-5">
+        <div class="detail-card h-100">
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-info-circle"></i> Step-by-Step Setup Guide
+            </h5>
+
+            <div class="setup-steps">
+                <!-- Step 1 -->
+                <div class="d-flex gap-3 mb-4">
+                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                        1
+                    </div>
+                    <div>
+                        <h6 class="fw-bold text-white mb-1">Create your Telegram Bot</h6>
+                        <p class="text-muted text-sm mb-0">Open <a href="https://t.me/BotFather" target="_blank" class="text-accent-light">@("@BotFather")</a> in Telegram and type <code>/newbot</code>. Follow the prompts to get your bot's **BotToken**.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="d-flex gap-3 mb-4">
+                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                        2
+                    </div>
+                    <div>
+                        <h6 class="fw-bold text-white mb-1">Start Local Tunneling (ngrok)</h6>
+                        <p class="text-muted text-sm mb-2">Since the app runs locally, Telegram needs a public URL. Run this command in a separate terminal to open a tunnel:</p>
+                        <div class="bg-dark p-2 rounded border border-secondary position-relative">
+                            <code class="text-accent-light text-sm" id="ngrokCmd">ngrok http http://localhost:5000</code>
+                            <button onclick="copyNgrokCommand()" class="btn btn-sm btn-link text-muted position-absolute end-0 top-0 mt-1 me-1 text-decoration-none" title="Copy to clipboard">
+                                <i class="bi bi-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="d-flex gap-3 mb-4">
+                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                        3
+                    </div>
+                    <div>
+                        <h6 class="fw-bold text-white mb-1">Register the Webhook</h6>
+                        <p class="text-muted text-sm mb-0">Copy the **https** URL from the ngrok output (e.g. <code>https://3bf2-111-222-33-44.ngrok-free.app</code>), paste it into the "Set Webhook URL" box on the left, and click **Register Webhook**.</p>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="d-flex gap-3">
+                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                        4
+                    </div>
+                    <div>
+                        <h6 class="fw-bold text-white mb-1">Test the Automation!</h6>
+                        <p class="text-muted text-sm mb-0">Open your Telegram bot chat, click **Start**, and send either a **text job post**, **LinkedIn hiring screenshot**, or **PDF job description**. Check your JobFlow dashboard to see the magic happen!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function copyNgrokCommand() {
+            const cmd = document.getElementById("ngrokCmd").innerText;
+            navigator.clipboard.writeText(cmd).then(() => {
+                alert("ngrok command copied to clipboard!");
+            });
+        }
+    </script>
+}

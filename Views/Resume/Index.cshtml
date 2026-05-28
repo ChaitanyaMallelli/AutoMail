@@ -1,0 +1,232 @@
+@model JobAutomation.Models.Resume
+@{
+    ViewData["Title"] = "Resumes & Personal Profile";
+    ViewData["Subtitle"] = "Manage multiple resume profiles, select default matches, and configure your info";
+    var profile = ViewBag.Profile as JobAutomation.Models.UserProfile;
+    var allResumes = ViewBag.Resumes as List<JobAutomation.Models.Resume> ?? new List<JobAutomation.Models.Resume>();
+    
+    var activeSkills = new List<string>();
+    if (Model?.Skills != null)
+    {
+        try { activeSkills = Newtonsoft.Json.JsonConvert.DeserializeObject<List<string>>(Model.Skills) ?? new List<string>(); }
+        catch { }
+    }
+}
+
+<div class="row g-4">
+    <!-- Resumes List & Upload Container -->
+    <div class="col-lg-7">
+        <!-- Multiple Resumes List -->
+        <div class="detail-card mb-4" style="border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(20, 27, 45, 0.7); backdrop-filter: blur(15px); box-shadow: var(--shadow-lg);">
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-folder-fill text-accent-light"></i> Uploaded Resumes Directory
+            </h5>
+            
+            @if (allResumes.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <div class="mb-3" style="font-size: 48px; color: var(--color-text-muted);">
+                        <i class="bi bi-file-earmark-pdf-fill text-muted"></i>
+                    </div>
+                    <h5 class="text-white fw-bold">No Resumes Uploaded Yet</h5>
+                    <p class="text-muted text-sm mx-auto" style="max-width: 320px;">Use the creation panel to add your first resume. You can upload multiple resumes under the <code>Resume/</code> folder.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0" style="--bs-table-bg: transparent; --bs-table-border-color: rgba(255, 255, 255, 0.05);">
+                        <thead>
+                            <tr class="text-muted text-xs uppercase" style="letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <th>Resume Profile</th>
+                                <th>Uploaded At</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var resume in allResumes)
+                            {
+                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3 p-2 rounded" style="background: rgba(99, 102, 241, 0.1); color: var(--color-accent-light); font-size: 1.25rem;">
+                                                <i class="bi bi-file-earmark-pdf"></i>
+                                            </div>
+                                            <div>
+                                                <span class="fw-bold text-white d-block text-sm">
+                                                    @(string.IsNullOrEmpty(resume.FilePath) ? "Text-Only Profile" : System.IO.Path.GetFileName(resume.FilePath))
+                                                </span>
+                                                <span class="text-xs text-muted d-block" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                    @(resume.Experience != null && resume.Experience.Length > 40 ? resume.Experience.Substring(0, 40) + "..." : resume.Experience ?? "No description")
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-sm text-muted">@resume.UploadedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td class="text-center">
+                                        @if (resume.IsActive)
+                                        {
+                                            <span class="status-badge status-sent" style="font-size: 11px; padding: 3px 10px; font-weight: 600;">
+                                                <i class="bi bi-check-circle-fill"></i> Active Match
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-badge status-pending" style="font-size: 11px; padding: 3px 10px; font-weight: 600; opacity: 0.5;">
+                                                Inactive
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-inline-flex gap-1.5">
+                                            @if (!resume.IsActive)
+                                            {
+                                                <form method="post" asp-action="SetDefault" asp-route-id="@resume.Id" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-glow px-2.5 py-1 text-xs" title="Make default matching resume">
+                                                        <i class="bi bi-check-lg"></i> Default
+                                                    </button>
+                                                </form>
+                                            }
+                                            @if (!string.IsNullOrEmpty(resume.FilePath))
+                                            {
+                                                <a href="@Url.Action("ViewFile", "Resume", new { id = resume.Id })" target="_blank" class="btn btn-sm btn-outline-light px-2 py-1 text-xs" title="Open PDF file">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                            }
+                                            <form method="post" asp-action="Delete" asp-route-id="@resume.Id" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this resume?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1 text-xs" title="Delete profile">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- Add / Upload New Resume Panel -->
+        <div class="detail-card" style="border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(20, 27, 45, 0.7); backdrop-filter: blur(15px); box-shadow: var(--shadow-lg);">
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-cloud-arrow-up-fill text-accent-light"></i> Upload & Build New Resume Profile
+            </h5>
+            
+            <form method="post" asp-action="Upload" enctype="multipart/form-data">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Resume Full Text</label>
+                        <textarea name="fullText" class="form-control" rows="6"
+                                  placeholder="Paste your full resume text content here for AI match comparisons..." required></textarea>
+                        <div class="form-text">Paste details like your bio, background, and summary.</div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Skills <span class="text-muted">(comma-separated)</span></label>
+                        <textarea name="skills" class="form-control" rows="2"
+                                  placeholder="C#, .NET Core, SQL Server, Javascript, React, Azure, Docker..."></textarea>
+                        <div class="form-text">Technical capabilities separated by commas.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Work Experience Summary</label>
+                        <textarea name="experience" class="form-control" rows="3"
+                                  placeholder="2+ years as a Software Engineer..."></textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Education Summary</label>
+                        <textarea name="education" class="form-control" rows="3"
+                                  placeholder="Bachelor of Technology in CS..."></textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Resume File Attachment (PDF/DOC)</label>
+                        <input type="file" name="resumeFile" class="form-control" accept=".pdf,.doc,.docx" required />
+                        <div class="form-text">This file will be uploaded directly under the local <code>Resume/</code> folder.</div>
+                    </div>
+
+                    <div class="col-12 pt-2">
+                        <button type="submit" class="btn btn-glow w-100 btn-lg">
+                            <i class="bi bi-plus-circle me-1"></i> Upload and Activate Resume
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Personal Profile & Info Container -->
+    <div class="col-lg-5">
+        <!-- Personal Profile Details -->
+        <div class="detail-card mb-4" style="border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(20, 27, 45, 0.7); backdrop-filter: blur(15px); box-shadow: var(--shadow-lg);">
+            <h5 class="detail-card-title mb-4">
+                <i class="bi bi-person-circle text-accent-light"></i> Personal Profile Info
+            </h5>
+            <form method="post" asp-action="UpdateProfile">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="fullName" class="form-control" value="@(profile?.FullName)" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" name="email" class="form-control" value="@(profile?.Email)" required />
+                        <div class="form-text">Used as the sender address in Gmail client outreach.</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Contact Phone</label>
+                        <input type="text" name="phone" class="form-control" value="@(profile?.Phone)" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">LinkedIn Profile URL</label>
+                        <input type="url" name="linkedInUrl" class="form-control" value="@(profile?.LinkedInUrl)" placeholder="https://linkedin.com/in/..." />
+                    </div>
+                    <div class="col-12 pt-2">
+                        <button type="submit" class="btn btn-glow w-100">
+                            <i class="bi bi-check-lg me-1"></i> Save Profile Details
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Active Resume Details Preview Card -->
+        @if (Model != null)
+        {
+            <div class="detail-card" style="border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(10px);">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="text-white fw-bold mb-0">
+                        <i class="bi bi-file-earmark-check text-accent-light"></i> Default Match Preview
+                    </h6>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 text-xs">Currently Selected</span>
+                </div>
+                
+                <hr class="my-2 border-secondary" style="opacity: 0.1;" />
+                
+                <div class="mb-3">
+                    <span class="text-muted text-xs uppercase d-block mb-1">Skills Profile:</span>
+                    <div class="d-flex flex-wrap gap-1.5">
+                        @foreach (var skill in activeSkills)
+                        {
+                            <span class="badge text-xs" style="background: rgba(99, 102, 241, 0.15); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.15);">@skill</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <span class="text-muted text-xs uppercase d-block mb-1">Education summary:</span>
+                    <p class="text-sm text-white mb-0" style="line-height: 1.5;">@(string.IsNullOrEmpty(Model.Education) ? "No education specified" : Model.Education)</p>
+                </div>
+                
+                <div>
+                    <span class="text-muted text-xs uppercase d-block mb-1">Experience summary:</span>
+                    <p class="text-sm text-white mb-0" style="line-height: 1.5;">@(string.IsNullOrEmpty(Model.Experience) ? "No experience specified" : Model.Experience)</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>

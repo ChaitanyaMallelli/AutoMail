@@ -1,0 +1,211 @@
+@model JobAutomation.Models.JobPost
+@{
+    ViewData["Title"] = "Email Preview";
+    ViewData["Subtitle"] = $"{Model.CompanyName} — {Model.Role}";
+}
+
+<div class="preview-container">
+    <!-- Job Details Sidebar -->
+    <div class="preview-sidebar">
+        <div class="detail-card">
+            <h5 class="detail-card-title">
+                <i class="bi bi-building"></i> Job Details
+            </h5>
+
+            <div class="detail-item">
+                <span class="detail-label">Company</span>
+                <span class="detail-value">@Model.CompanyName</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Role</span>
+                <span class="detail-value">@Model.Role</span>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.Location))
+            {
+                <div class="detail-item">
+                    <span class="detail-label">Location</span>
+                    <span class="detail-value"><i class="bi bi-geo-alt"></i> @Model.Location</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(Model.ExperienceRequired))
+            {
+                <div class="detail-item">
+                    <span class="detail-label">Experience</span>
+                    <span class="detail-value">@Model.ExperienceRequired</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(Model.RequiredSkills))
+            {
+                <div class="detail-item">
+                    <span class="detail-label">Required Skills</span>
+                    <div class="skills-tags">
+                        @foreach (var skill in Model.RequiredSkills.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            <span class="skill-tag">@skill.Trim()</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="detail-item">
+                <span class="detail-label">Source</span>
+                <span class="source-badge source-@Model.Source.ToString().ToLower()">
+                    <i class="bi bi-@(Model.Source == JobAutomation.Models.JobSource.Telegram ? "telegram" : "cloud-arrow-up")"></i>
+                    @Model.Source
+                </span>
+            </div>
+
+            <hr class="detail-divider" />
+
+            <div class="score-display">
+                <div class="score-item">
+                    <div class="score-circle @(Model.AtsScore >= 70 ? "score-high" : Model.AtsScore >= 40 ? "score-mid" : "score-low")">
+                        <span class="score-number">@Model.AtsScore</span>
+                    </div>
+                    <span class="score-label">ATS Score</span>
+                </div>
+                <div class="score-item">
+                    <div class="score-circle @(Model.SkillMatchPercentage >= 70 ? "score-high" : Model.SkillMatchPercentage >= 40 ? "score-mid" : "score-low")">
+                        <span class="score-number">@(Model.SkillMatchPercentage)%</span>
+                    </div>
+                    <span class="score-label">Skill Match</span>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ImagePath))
+        {
+            <div class="detail-card">
+                <h5 class="detail-card-title">
+                    <i class="bi bi-image"></i> Source Image
+                </h5>
+                <img src="@Model.ImagePath" alt="Job post screenshot" class="source-image" />
+            </div>
+        }
+    </div>
+
+    <!-- Email Preview -->
+    <div class="preview-main">
+        @if (Model.GeneratedEmail != null)
+        {
+            var email = Model.GeneratedEmail;
+
+            <div class="email-card">
+                <div class="email-card-header">
+                    <h5><i class="bi bi-envelope-paper-fill"></i> Generated Email</h5>
+                    <div class="email-status">
+                        @if (email.IsSent)
+                        {
+                            <span class="status-badge status-sent"><i class="bi bi-check-circle-fill"></i> Sent @email.SentAt?.ToString("MMM dd, HH:mm")</span>
+                        }
+                        else if (email.IsApproved)
+                        {
+                            <span class="status-badge status-approved"><i class="bi bi-check2-circle"></i> Approved</span>
+                        }
+                        else
+                        {
+                            <span class="status-badge status-ready"><i class="bi bi-pencil-square"></i> Draft</span>
+                        }
+                    </div>
+                </div>
+
+                <form method="post" id="emailForm">
+                    <div class="email-field">
+                        <label class="email-label">To:</label>
+                        <input type="email" name="recipientEmail" class="form-control email-input"
+                               value="@email.RecipientEmail" id="recipientEmail" @(email.IsSent ? "readonly" : "") />
+                    </div>
+
+                    <div class="email-field">
+                        <label class="email-label">Subject:</label>
+                        <input type="text" name="subject" class="form-control email-input"
+                               value="@email.Subject" id="subjectInput" @(email.IsSent ? "readonly" : "") />
+                    </div>
+
+                    <div class="email-field">
+                        <label class="email-label">Body:</label>
+                        <textarea name="body" class="form-control email-textarea" id="bodyInput"
+                                  rows="14" @(email.IsSent ? "readonly" : "")>@email.Body</textarea>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(email.ErrorMessage))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Last Error:</strong> @email.ErrorMessage
+                            <span class="text-muted ms-2">(Retry count: @email.RetryCount)</span>
+                        </div>
+                    }
+                </form>
+
+                <div class="email-actions">
+                    @if (!email.IsSent)
+                    {
+                        <form method="post" asp-action="Update" asp-route-id="@Model.Id" class="d-inline">
+                            <input type="hidden" name="subject" id="updateSubject" />
+                            <input type="hidden" name="body" id="updateBody" />
+                            <input type="hidden" name="recipientEmail" id="updateRecipient" />
+                            <button type="submit" class="btn btn-outline-light" onclick="syncFormFields('update')">
+                                <i class="bi bi-pencil-square me-1"></i> Save Changes
+                            </button>
+                        </form>
+
+                        @if (!email.IsApproved)
+                        {
+                            <form method="post" asp-action="Approve" asp-route-id="@Model.Id" class="d-inline">
+                                <button type="submit" class="btn btn-approve">
+                                    <i class="bi bi-check-lg me-1"></i> Approve
+                                </button>
+                            </form>
+                        }
+
+                        <form method="post" asp-action="Send" asp-route-id="@Model.Id" class="d-inline">
+                            <button type="submit" class="btn btn-glow"
+                                    onclick="return confirm('Send this email to @email.RecipientEmail?')">
+                                <i class="bi bi-send-fill me-1"></i> Send Email
+                            </button>
+                        </form>
+
+                        @if (email.ErrorMessage != null)
+                        {
+                            <form method="post" asp-action="Retry" asp-route-id="@Model.Id" class="d-inline">
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="bi bi-arrow-clockwise me-1"></i> Retry
+                                </button>
+                            </form>
+                        }
+                    }
+
+                    <a href="@Url.Action("Index", "Dashboard")" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="email-card">
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-envelope-x"></i></div>
+                    <h3>No Email Generated</h3>
+                    <p>Upload your resume first so the AI can generate a matching email.</p>
+                    <a href="@Url.Action("Index", "Resume")" class="btn btn-glow mt-3">
+                        <i class="bi bi-file-earmark-person me-2"></i> Setup Resume
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function syncFormFields(type) {
+            if (type === 'update') {
+                document.getElementById('updateSubject').value = document.getElementById('subjectInput').value;
+                document.getElementById('updateBody').value = document.getElementById('bodyInput').value;
+                document.getElementById('updateRecipient').value = document.getElementById('recipientEmail').value;
+            }
+        }
+    </script>
+}
