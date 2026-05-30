@@ -6,10 +6,19 @@ using JobAutomation.Models;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using System.Collections.Concurrent;
+
 namespace JobAutomation.Services;
+
+public class MockInterviewState
+{
+    public int JobId { get; set; }
+    public string ConversationHistory { get; set; } = "";
+}
 
 public class TelegramService
 {
+    private static readonly ConcurrentDictionary<long, MockInterviewState> _activeInterviews = new();
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
     private readonly ILogger<TelegramService> _logger;
@@ -97,6 +106,18 @@ public class TelegramService
                         await HandlePostExtractionFlowAsync(chatId, jobId);
                         return;
                     }
+                }
+            }
+
+            // Check for Voice message (Mock Interview)
+            var voice = message["voice"];
+            if (voice != null)
+            {
+                var fileId = voice["file_id"]?.ToString();
+                if (!string.IsNullOrEmpty(fileId))
+                {
+                    await HandleVoiceMessageAsync(chatId, fileId);
+                    return;
                 }
             }
 
@@ -234,6 +255,29 @@ public class TelegramService
         await SendKeyboardReplyAsync(chatId, messageText, inlineKeyboard);
     }
 
+    public async Task SendJobAlertAsync(long chatId, ScoutedJob job)
+    {
+        var messageText = $"🚨 <b>New LinkedIn Job Found!</b>\n\n" +
+                          $"<b>Keyword:</b> {EscapeHtml(job.KeywordMatched)}\n" +
+                          $"<b>Experience:</b> ✅ 3+ Years Verified\n\n" +
+                          $"<a href=\"{job.LinkedInUrl}\">View Post on LinkedIn</a>\n\n" +
+                          $"<i>Would you like me to extract the details, match your resume, and draft an email?</i>";
+
+        var inlineKeyboard = new
+        {
+            inline_keyboard = new[]
+            {
+                new[]
+                {
+                    new { text = "👍 Apply", callback_data = $"scout_apply:{job.Id}" },
+                    new { text = "👎 Skip", callback_data = $"scout_ignore:{job.Id}" }
+                }
+            }
+        };
+
+        await SendKeyboardReplyAsync(chatId, messageText, inlineKeyboard);
+    }
+
     private async Task HandleCallbackQueryAsync(JToken callbackQuery)
     {
         long chatId = 0, messageId = 0;
@@ -345,6 +389,29 @@ public class TelegramService
                     await EditMessageTextAsync(chatId, messageId, "Dismissed reminder.");
                     break;
 
+                // Auto-Scout Flow
+                case "scout_apply":
+                    var scoutedJob = await _dbContext.ScoutedJobs.FindAsync(jobId);
+                    if (scoutedJob != null)
+                    {
+                        scoutedJob.Status = ScoutedJobStatus.Applied;
+                        await _dbContext.SaveChangesAsync();
+                        await EditMessageTextAsync(chatId, messageId, $"⏳ <b>Extracting Details...</b>\nFrom: {scoutedJob.LinkedInUrl}");
+                        
+                        var newJobId = await _jobProcessingService.ProcessUrlAsync(scoutedJob.LinkedInUrl, Models.JobSource.Telegram, chatId);
+                        await HandlePostExtractionFlowAsync(chatId, newJobId);
+                    }
+                    break;
+                case "scout_ignore":
+                    var ignoredJob = await _dbContext.ScoutedJobs.FindAsync(jobId);
+                    if (ignoredJob != null)
+                    {
+                        ignoredJob.Status = ScoutedJobStatus.IgnoredByGemini;
+                        await _dbContext.SaveChangesAsync();
+                        await EditMessageTextAsync(chatId, messageId, "❌ Post ignored.");
+                    }
+                    break;
+
                 // Response Tracking
                 case "response_interview":
                     job.Status = JobStatus.InterviewScheduled;
@@ -419,13 +486,76 @@ public class TelegramService
         await SendKeyboardReplyAsync(chatId, "Any updates on this application?", inlineKeyboard);
     }
 
+    private async Task HandleVoiceMessageAsync(long chatId, string fileId)
+    {
+        if (!_activeInterviews.TryGetValue(chatId, out var state))
+        {
+            await SendReplyAsync(chatId, "⚠️ I received a voice note, but we are not currently in a mock interview. Send `/mockinterview [JobId]` to start one!");
+            return;
+        }
+
+        var job = await _dbContext.JobPosts.FindAsync(state.JobId);
+        var profile = await _dbContext.UserProfiles.FirstOrDefaultAsync();
+        if (job == null || profile == null)
+        {
+            await SendReplyAsync(chatId, "⚠️ Error: Could not find job or profile context.");
+            return;
+        }
+
+        await SendReplyAsync(chatId, "🎙️ <i>Listening...</i>");
+
+        var audioBytes = await DownloadFileAsync(fileId);
+        if (audioBytes == null)
+        {
+            await SendReplyAsync(chatId, "❌ Failed to download your voice note.");
+            return;
+        }
+
+        // Process with Gemini Native Audio
+        var responseText = await _geminiService.ProcessMockInterviewAudioAsync(audioBytes, job, profile, state.ConversationHistory);
+        
+        // Update history
+        state.ConversationHistory += $"\nApplicant: [Voice Note]\nRecruiter: {responseText}\n";
+
+        // Send Text response (simulating voice for V1)
+        await SendReplyAsync(chatId, $"🤖 <b>Recruiter:</b>\n\n{responseText}\n\n<i>(Reply with another voice note to continue, or /stopinterview to end)</i>");
+    }
+
     private async Task HandleCommandAsync(long chatId, string command)
     {
-        switch (command.ToLower().Split('@')[0])
+        var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var cmd = parts[0].ToLower().Split('@')[0];
+
+        switch (cmd)
         {
             case "/start":
             case "/help":
                 await SendReplyAsync(chatId, "👋 Welcome to JobFlow AI!\n\nSend me:\n🔗 Job URLs (LinkedIn, Indeed)\n📝 Text job posts\n📸 Screenshots\n📄 PDF job descriptions\n\nI'll extract details, match your resume, and write the email!");
+                break;
+            case "/mockinterview":
+                if (parts.Length < 2 || !int.TryParse(parts[1], out var jobId))
+                {
+                    await SendReplyAsync(chatId, "⚠️ Please provide a Job ID. Example: `/mockinterview 5`");
+                    break;
+                }
+                var job = await _dbContext.JobPosts.FindAsync(jobId);
+                if (job == null)
+                {
+                    await SendReplyAsync(chatId, "❌ Job not found.");
+                    break;
+                }
+                _activeInterviews[chatId] = new MockInterviewState { JobId = jobId };
+                await SendReplyAsync(chatId, $"🎙️ <b>Mock Interview Started!</b>\nRole: {job.Role} at {job.CompanyName}\n\nSend a <b>Voice Message</b> saying hello to begin!");
+                break;
+            case "/stopinterview":
+                if (_activeInterviews.TryRemove(chatId, out _))
+                {
+                    await SendReplyAsync(chatId, "🛑 Mock Interview ended. Great job practicing!");
+                }
+                else
+                {
+                    await SendReplyAsync(chatId, "You are not in a mock interview.");
+                }
                 break;
         }
     }

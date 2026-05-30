@@ -27,9 +27,14 @@ builder.Services.AddScoped<ResumeMatchingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<JobProcessingService>();
 builder.Services.AddScoped<TelegramService>();
+builder.Services.AddScoped<LinkedInScraperService>();
+builder.Services.AddScoped<JobScoutManager>();
+
+// builder.Services.AddSignalR(); // Temporarily disabled Co-Pilot
 
 // Hosted Background Services
 builder.Services.AddHostedService<JobAutomation.Workers.FollowUpBackgroundService>();
+builder.Services.AddHostedService<JobAutomation.Workers.JobScoutBackgroundService>();
 
 // JSON options
 builder.Services.AddControllers()
@@ -116,6 +121,8 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
+
+// app.MapHub<JobAutomation.Hubs.InterviewHub>("/interviewHub"); // Temporarily disabled Co-Pilot
 
 app.MapControllers(); // For API controllers (Telegram webhook)
 

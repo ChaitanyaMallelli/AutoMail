@@ -89,4 +89,19 @@ public class DashboardController : Controller
 
         return View(jobPosts);
     }
+
+    [HttpPost]
+    public async Task<IActionResult> RunScoutNow([FromServices] JobAutomation.Services.JobScoutManager scoutManager)
+    {
+        try
+        {
+            await scoutManager.RunScoutCycleAsync();
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to run manual scout cycle.");
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
 }

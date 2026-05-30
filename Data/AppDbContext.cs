@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<GeneratedEmail> GeneratedEmails => Set<GeneratedEmail>();
     public DbSet<Resume> Resumes => Set<Resume>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<ScoutedJob> ScoutedJobs => Set<ScoutedJob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

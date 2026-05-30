@@ -1,0 +1,203 @@
+@model JobAutomation.Models.JobPost
+@{
+    ViewData["Title"] = "Live Interview Co-Pilot";
+    Layout = null; // We want a totally clean, distraction-free stealth UI
+}
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stealth Co-Pilot - @Model.CompanyName</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .status-badge {
+            background-color: #ef4444;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-badge.listening {
+            background-color: #10b981;
+            animation: pulse 2s infinite;
+        }
+        @@keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .hint-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .hint-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.3s ease-out;
+            border-left: 4px solid #3b82f6;
+        }
+        @@keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .hint-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 0;
+            white-space: pre-line;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h5 class="mb-0 text-white">Co-Pilot</h5>
+            <small class="text-secondary">@Model.Role at @Model.CompanyName</small>
+        </div>
+        <div id="statusBadge" class="status-badge">
+            <span class="dot">●</span> Offline
+        </div>
+    </div>
+
+    <div class="hint-container" id="hintContainer">
+        <div class="hint-card text-center text-secondary" style="border-left-color: #64748b;" id="waitingMessage">
+            Click "Start Listening" when the interview begins.<br/>
+            Keep this window visible on a second monitor.
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="btnStart" class="btn btn-primary px-4">Start Listening</button>
+        <button id="btnStop" class="btn btn-danger px-4" style="display:none;">Stop</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+    <script>
+        const jobId = @Model.Id;
+        let mediaRecorder;
+        let micStream;
+        let systemStream;
+        let audioContext;
+        let audioChunks = [];
+        
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/interviewHub")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.on("ReceiveHint", (hint) => {
+            const container = document.getElementById('hintContainer');
+            document.getElementById('waitingMessage')?.remove();
+            
+            const card = document.createElement('div');
+            card.className = 'hint-card';
+            card.innerHTML = `<p class="hint-text">${hint}</p>`;
+            
+            container.appendChild(card);
+            container.scrollTop = container.scrollHeight;
+        });
+
+        connection.on("ReceiveError", (err) => {
+            console.error("Server error:", err);
+        });
+
+        document.getElementById('btnStart').addEventListener('click', async () => {
+            try {
+                await connection.start();
+                
+                // Capture system audio (Recruiter)
+                alert("Please share your screen or tab and CHECK the 'Share Audio' box!");
+                systemStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                
+                // Capture microphone (You)
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Mix them together using Web Audio API
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const dest = audioContext.createMediaStreamDestination();
+                
+                audioContext.createMediaStreamSource(systemStream).connect(dest);
+                audioContext.createMediaStreamSource(micStream).connect(dest);
+
+                mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(event.data);
+                        reader.onloadend = () => {
+                            const base64String = reader.result.split(',')[1];
+                            connection.invoke("SendAudioChunk", base64String, jobId);
+                        };
+                    }
+                };
+
+                // Capture and send audio every 5 seconds
+                mediaRecorder.start(5000); 
+
+                document.getElementById('statusBadge').className = 'status-badge listening';
+                document.getElementById('statusBadge').innerHTML = '<span class="dot">●</span> Listening';
+                document.getElementById('btnStart').style.display = 'none';
+                document.getElementById('btnStop').style.display = 'inline-block';
+                
+            } catch (err) {
+                alert("Error: You must allow microphone access AND check 'Share Audio' when sharing your screen.");
+                console.error(err);
+            }
+        });
+
+        document.getElementById('btnStop').addEventListener('click', () => {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+            }
+            if (micStream) micStream.getTracks().forEach(track => track.stop());
+            if (systemStream) systemStream.getTracks().forEach(track => track.stop());
+            if (audioContext) audioContext.close();
+            connection.stop();
+            
+            document.getElementById('statusBadge').className = 'status-badge';
+            document.getElementById('statusBadge').innerHTML = '<span class="dot">●</span> Offline';
+            document.getElementById('btnStart').style.display = 'inline-block';
+            document.getElementById('btnStop').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

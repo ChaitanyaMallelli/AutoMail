@@ -189,6 +189,87 @@ Email rules:
         }
     }
 
+    public async Task<string> ProcessMockInterviewAudioAsync(byte[] audioBytes, JobPost job, UserProfile profile, string conversationHistory)
+    {
+        try
+        {
+            var prompt = $@"You are a professional corporate recruiter conducting a voice mock interview.
+Your goal is to interview the applicant for the role of '{job.Role}' at '{job.CompanyName}'.
+The applicant's name is {profile.FullName}.
+
+Here is the job description you are hiring for:
+{job.RawContent ?? job.RequiredSkills}
+
+Here is the conversation history so far:
+{conversationHistory}
+
+Listen to the applicant's attached voice message.
+Respond directly to their voice message as the recruiter. 
+Keep your response conversational, concise (under 3 sentences), and natural to be spoken aloud.
+Do not use markdown, bullet points, or complex formatting. Just plain conversational text.
+If they just joined, greet them and ask the first interview question.";
+
+            var response = await CallGeminiWithImageAsync(prompt, audioBytes, "audio/ogg");
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing mock interview audio via Gemini");
+            return "I'm sorry, I encountered an error processing your voice. Could you please try again?";
+        }
+    }
+
+    public async Task<string> ProcessLiveInterviewAudioAsync(byte[] audioBytes, JobPost job)
+    {
+        try
+        {
+            var prompt = $@"You are a live interview Co-Pilot. You are listening to a live job interview for the role of '{job.Role}' at '{job.CompanyName}'.
+Job context: {job.RawContent ?? job.RequiredSkills}
+
+Listen to the attached audio chunk from the live interview.
+If you hear the recruiter asking a question, instantly output 2-3 extremely concise bullet points with suggested talking points for the applicant.
+If there is no question, or just casual chatter, return the word 'SILENCE'.
+Do not output greetings or conversation. ONLY bullet points. Keep it extremely brief so the applicant can read it instantly.";
+
+            var response = await CallGeminiWithImageAsync(prompt, audioBytes, "audio/webm");
+            
+            // Filter out empty or non-helpful responses
+            if (response.Contains("SILENCE", StringComparison.OrdinalIgnoreCase) || response.Length < 10)
+                return "";
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing live interview audio chunk");
+            return "";
+        }
+    }
+
+    public async Task<bool> IsPostRelevantAsync(string postText)
+    {
+        try
+        {
+            var prompt = $@"You are a strict HR filter. Read the following LinkedIn post.
+Determine if the post is explicitly hiring a software developer AND explicitly requires exactly or more than 3 years of experience.
+
+If it explicitly mentions '3+ years', '3-5 years', 'minimum 3 years', etc., return exactly the word TRUE.
+If experience is not mentioned, or it is less than 3 years (e.g. '0-2 years', 'fresher'), return exactly the word FALSE.
+If the post is not a job opening, return exactly the word FALSE.
+
+Post text:
+{postText}";
+
+            var response = await CallGeminiAsync(prompt);
+            return response.Trim().Equals("TRUE", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error filtering post via Gemini");
+            return false; // Safely ignore if API fails
+        }
+    }
+
     private string BuildExtractionPrompt(string text)
     {
         return $@"You are a job posting analyzer. Extract the following details from this job posting text.
