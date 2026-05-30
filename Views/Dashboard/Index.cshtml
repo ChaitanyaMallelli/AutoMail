@@ -60,143 +60,232 @@
     </div>
 </div>
 
-<!-- Filters & Search -->
-<div class="glass-panel mb-4 p-3">
-    <form method="get" class="row g-3 align-items-center">
-        <div class="col-md-5">
-            <div class="input-group">
-                <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
-                <input type="text" name="search" class="form-control" placeholder="Search company, role..." value="@ViewBag.Search">
-            </div>
-        </div>
-        <div class="col-md-3">
-            <select name="status" class="form-select">
-                <option value="">All Statuses</option>
-                <option value="Pending" selected="@(ViewBag.Status == "Pending" ? "selected" : null)">Pending</option>
-                <option value="EmailGenerated" selected="@(ViewBag.Status == "EmailGenerated" ? "selected" : null)">Ready for Review</option>
-                <option value="Sent" selected="@(ViewBag.Status == "Sent" ? "selected" : null)">Sent</option>
-                <option value="FollowUpSent" selected="@(ViewBag.Status == "FollowUpSent" ? "selected" : null)">Follow-up Sent</option>
-                <option value="InterviewScheduled" selected="@(ViewBag.Status == "InterviewScheduled" ? "selected" : null)">Interviewing</option>
-                <option value="Offered" selected="@(ViewBag.Status == "Offered" ? "selected" : null)">Offered</option>
-                <option value="Rejected" selected="@(ViewBag.Status == "Rejected" ? "selected" : null)">Rejected</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <select name="sort" class="form-select">
-                <option value="">Latest First</option>
-                <option value="company" selected="@(ViewBag.Sort == "company" ? "selected" : null)">Company (A-Z)</option>
-                <option value="role" selected="@(ViewBag.Sort == "role" ? "selected" : null)">Role (A-Z)</option>
-                <option value="match" selected="@(ViewBag.Sort == "match" ? "selected" : null)">Highest Match %</option>
-            </select>
-        </div>
-        <div class="col-md-1 text-end">
-            <button type="submit" class="btn btn-primary w-100">Filter</button>
-        </div>
-    </form>
-</div>
+<!-- Tabs Navigation -->
+<ul class="nav nav-tabs mb-4 border-secondary-subtle" id="dashboardTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold text-white px-4" id="applications-tab" data-bs-toggle="tab" data-bs-target="#applications" type="button" role="tab" aria-controls="applications" aria-selected="true">
+            <i class="bi bi-briefcase me-2"></i> Active Applications
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-bold text-white px-4" id="scout-logs-tab" data-bs-toggle="tab" data-bs-target="#scout-logs" type="button" role="tab" aria-controls="scout-logs" aria-selected="false">
+            <i class="bi bi-robot me-2"></i> LinkedIn Scout Logs
+        </button>
+    </li>
+</ul>
 
-<!-- Job Posts Table -->
-<div class="glass-panel p-0">
-    <div class="table-responsive">
-        @if (Model.Count == 0)
-        {
-            <div class="p-5 text-center text-muted">
-                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                <h5>No job posts found</h5>
-                <p>Upload a screenshot, PDF, or text job post to get started.</p>
+<div class="tab-content" id="dashboardTabsContent">
+    <!-- Active Applications Tab -->
+    <div class="tab-pane fade show active" id="applications" role="tabpanel" aria-labelledby="applications-tab">
+        <!-- Filters & Search -->
+        <div class="glass-panel mb-4 p-3">
+            <form method="get" class="row g-3 align-items-center" id="filterForm">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" id="searchInput" class="form-control" placeholder="Search company, role..." value="@ViewBag.Search">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="status" class="form-select" onchange="document.getElementById('filterForm').submit()">
+                        <option value="">All Statuses</option>
+                        <option value="Pending" selected="@(ViewBag.Status == "Pending" ? "selected" : null)">Pending</option>
+                        <option value="EmailGenerated" selected="@(ViewBag.Status == "EmailGenerated" ? "selected" : null)">Ready for Review</option>
+                        <option value="Sent" selected="@(ViewBag.Status == "Sent" ? "selected" : null)">Sent</option>
+                        <option value="FollowUpSent" selected="@(ViewBag.Status == "FollowUpSent" ? "selected" : null)">Follow-up Sent</option>
+                        <option value="InterviewScheduled" selected="@(ViewBag.Status == "InterviewScheduled" ? "selected" : null)">Interviewing</option>
+                        <option value="Offered" selected="@(ViewBag.Status == "Offered" ? "selected" : null)">Offered</option>
+                        <option value="Rejected" selected="@(ViewBag.Status == "Rejected" ? "selected" : null)">Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="sort" class="form-select" onchange="document.getElementById('filterForm').submit()">
+                        <option value="">Latest First</option>
+                        <option value="company" selected="@(ViewBag.Sort == "company" ? "selected" : null)">Company (A-Z)</option>
+                        <option value="role" selected="@(ViewBag.Sort == "role" ? "selected" : null)">Role (A-Z)</option>
+                        <option value="match" selected="@(ViewBag.Sort == "match" ? "selected" : null)">Highest Match %</option>
+                    </select>
+                </div>
+                <div class="col-md-1 text-end">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Job Posts Table -->
+        <div class="glass-panel p-0">
+            <div class="table-responsive">
+                @if (Model.Count == 0)
+                {
+                    <div class="p-5 text-center text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                        <h5>No job posts found</h5>
+                        <p>Upload a screenshot, PDF, or text job post to get started.</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Company</th>
+                                <th>Role</th>
+                                <th>Match %</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var job in Model)
+                            {
+                                <tr>
+                                    <td>@job.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td class="fw-bold">@job.CompanyName</td>
+                                    <td>@job.Role</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                                <div class="progress-bar @(job.SkillMatchPercentage >= 70 ? "bg-success" : job.SkillMatchPercentage >= 40 ? "bg-warning" : "bg-danger")"
+                                                     role="progressbar" style="width: @job.SkillMatchPercentage%"
+                                                     aria-valuenow="@job.SkillMatchPercentage" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <span class="small text-muted">@job.SkillMatchPercentage%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @switch (job.Status)
+                                        {
+                                            case JobAutomation.Models.JobStatus.Pending:
+                                                <span class="badge bg-secondary">Processing</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.EmailGenerated:
+                                                <span class="badge bg-info text-dark">Ready for Review</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Approved:
+                                                <span class="badge bg-primary">Approved</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Sent:
+                                                <span class="badge bg-success">Sent</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.FollowUpSent:
+                                                <span class="badge bg-primary">Follow-up Sent</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.InterviewScheduled:
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-telephone"></i> Interview</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Offered:
+                                                <span class="badge" style="background-color: var(--color-success);"><i class="bi bi-award"></i> Offered</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Rejected:
+                                                <span class="badge bg-danger">Rejected</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Ghosted:
+                                                <span class="badge bg-dark">Ghosted</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Skipped:
+                                                <span class="badge bg-secondary">Skipped</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.SavedForLater:
+                                                <span class="badge bg-info text-dark">Saved</span>
+                                                break;
+                                            case JobAutomation.Models.JobStatus.Failed:
+                                                <span class="badge bg-danger">Failed</span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-secondary">@job.Status</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="@Url.Action("Preview", "Email", new { id = job.Id })" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> View
+                                            </a>
+                                            <!-- Temporarily disabled Co-Pilot
+                                            <a href="@Url.Action("CoPilot", "Interview", new { id = job.Id })" class="btn btn-sm btn-outline-danger" target="_blank">
+                                                <i class="bi bi-mic-fill"></i> Co-Pilot
+                                            </a>
+                                            -->
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
-        }
-        else
-        {
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Company</th>
-                        <th>Role</th>
-                        <th>Match %</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var job in Model)
-                    {
-                        <tr>
-                            <td>@job.CreatedAt.ToString("MMM dd, yyyy")</td>
-                            <td class="fw-bold">@job.CompanyName</td>
-                            <td>@job.Role</td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="progress flex-grow-1 me-2" style="height: 6px;">
-                                        <div class="progress-bar @(job.SkillMatchPercentage >= 70 ? "bg-success" : job.SkillMatchPercentage >= 40 ? "bg-warning" : "bg-danger")"
-                                             role="progressbar" style="width: @job.SkillMatchPercentage%"
-                                             aria-valuenow="@job.SkillMatchPercentage" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                    <span class="small text-muted">@job.SkillMatchPercentage%</span>
-                                </div>
-                            </td>
-                            <td>
-                                @switch (job.Status)
-                                {
-                                    case JobAutomation.Models.JobStatus.Pending:
-                                        <span class="badge bg-secondary">Processing</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.EmailGenerated:
-                                        <span class="badge bg-info text-dark">Ready for Review</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Approved:
-                                        <span class="badge bg-primary">Approved</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Sent:
-                                        <span class="badge bg-success">Sent</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.FollowUpSent:
-                                        <span class="badge bg-primary">Follow-up Sent</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.InterviewScheduled:
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-telephone"></i> Interview</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Offered:
-                                        <span class="badge" style="background-color: var(--color-success);"><i class="bi bi-award"></i> Offered</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Rejected:
-                                        <span class="badge bg-danger">Rejected</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Ghosted:
-                                        <span class="badge bg-dark">Ghosted</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Skipped:
-                                        <span class="badge bg-secondary">Skipped</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.SavedForLater:
-                                        <span class="badge bg-info text-dark">Saved</span>
-                                        break;
-                                    case JobAutomation.Models.JobStatus.Failed:
-                                        <span class="badge bg-danger">Failed</span>
-                                        break;
-                                    default:
-                                        <span class="badge bg-secondary">@job.Status</span>
-                                        break;
-                                }
-                            </td>
-                            <td>
-                                <div class="btn-group" role="group">
-                                    <a href="@Url.Action("Preview", "Email", new { id = job.Id })" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
-                                    <!-- Temporarily disabled Co-Pilot
-                                    <a href="@Url.Action("CoPilot", "Interview", new { id = job.Id })" class="btn btn-sm btn-outline-danger" target="_blank">
-                                        <i class="bi bi-mic-fill"></i> Co-Pilot
-                                    </a>
-                                    -->
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
+        </div>
+    </div>
+
+    <!-- LinkedIn Scout Logs Tab -->
+    <div class="tab-pane fade" id="scout-logs" role="tabpanel" aria-labelledby="scout-logs-tab">
+        <div class="glass-panel p-0">
+            <div class="table-responsive">
+                @{
+                    var scoutedJobs = ViewBag.ScoutedJobs as List<JobAutomation.Models.ScoutedJob> ?? new List<JobAutomation.Models.ScoutedJob>();
+                }
+                @if (scoutedJobs.Count == 0)
+                {
+                    <div class="p-5 text-center text-muted">
+                        <i class="bi bi-robot fs-1 d-block mb-3"></i>
+                        <h5>No scout logs found</h5>
+                        <p>The background LinkedIn scout bot hasn't run yet or found any matches.</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0 text-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Keyword</th>
+                                <th>Status</th>
+                                <th>Text Preview</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sJob in scoutedJobs)
+                            {
+                                <tr>
+                                    <td class="align-middle">@sJob.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                    <td class="align-middle"><span class="badge bg-secondary">@sJob.KeywordMatched</span></td>
+                                    <td class="align-middle">
+                                        @switch (sJob.Status)
+                                        {
+                                            case JobAutomation.Models.ScoutedJobStatus.New:
+                                                <span class="badge bg-secondary">New</span>
+                                                break;
+                                            case JobAutomation.Models.ScoutedJobStatus.SentToTelegram:
+                                                <span class="badge bg-info text-dark"><i class="bi bi-telegram me-1"></i> Sent to Telegram</span>
+                                                break;
+                                            case JobAutomation.Models.ScoutedJobStatus.IgnoredByGemini:
+                                                <span class="badge bg-dark text-muted"><i class="bi bi-x-circle me-1"></i> Ignored by AI (Exp &lt; 3 yrs)</span>
+                                                break;
+                                            case JobAutomation.Models.ScoutedJobStatus.Applied:
+                                                <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i> Applied</span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-secondary">@sJob.Status</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td class="align-middle text-truncate" style="max-width: 450px;" title="@sJob.RawText">
+                                        @(sJob.RawText != null && sJob.RawText.Length > 90 ? sJob.RawText.Substring(0, 90) + "..." : sJob.RawText)
+                                    </td>
+                                    <td class="align-middle text-end pe-4">
+                                        <a href="@sJob.LinkedInUrl" target="_blank" class="btn btn-sm btn-outline-info">
+                                            <i class="bi bi-box-arrow-up-right me-1"></i> View Post
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
     </div>
 </div>
 

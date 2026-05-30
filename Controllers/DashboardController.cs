@@ -26,11 +26,12 @@ public class DashboardController : Controller
         if (!string.IsNullOrWhiteSpace(search))
         {
             search = search.Trim();
+            var searchLower = search.ToLower();
             query = query.Where(j =>
-                j.CompanyName.Contains(search) ||
-                j.Role.Contains(search) ||
-                (j.Location != null && j.Location.Contains(search)) ||
-                (j.RequiredSkills != null && j.RequiredSkills.Contains(search)));
+                j.CompanyName.ToLower().Contains(searchLower) ||
+                j.Role.ToLower().Contains(searchLower) ||
+                (j.Location != null && j.Location.ToLower().Contains(searchLower)) ||
+                (j.RequiredSkills != null && j.RequiredSkills.ToLower().Contains(searchLower)));
         }
 
         // Status filter
@@ -75,6 +76,11 @@ public class DashboardController : Controller
             ? (int)Math.Round((double)(interviews + offers + await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Rejected)) / sentJobs * 100)
             : 0;
 
+        var scoutedJobs = await _dbContext.ScoutedJobs
+            .OrderByDescending(s => s.CreatedAt)
+            .Take(100)
+            .ToListAsync();
+
         ViewBag.TotalJobs = totalJobs;
         ViewBag.PendingJobs = pendingJobs;
         ViewBag.SentJobs = sentJobs;
@@ -86,6 +92,7 @@ public class DashboardController : Controller
         ViewBag.Search = search;
         ViewBag.Status = status;
         ViewBag.Sort = sort;
+        ViewBag.ScoutedJobs = scoutedJobs;
 
         return View(jobPosts);
     }

@@ -304,8 +304,12 @@ public class TelegramService
             var action = parts[0];
             if (!int.TryParse(parts[1], out var jobId)) return;
 
-            var job = await _dbContext.JobPosts.Include(j => j.GeneratedEmail).FirstOrDefaultAsync(j => j.Id == jobId);
-            if (job == null) return;
+            JobPost? job = null;
+            if (action != "scout_apply" && action != "scout_ignore")
+            {
+                job = await _dbContext.JobPosts.Include(j => j.GeneratedEmail).FirstOrDefaultAsync(j => j.Id == jobId);
+                if (job == null) return;
+            }
 
             switch (action)
             {

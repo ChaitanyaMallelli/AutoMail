@@ -198,10 +198,11 @@ public class EmailController : Controller
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            var searchLower = search.ToLower();
             query = query.Where(e =>
-                e.RecipientEmail.Contains(search) ||
-                e.Subject.Contains(search) ||
-                (e.JobPost != null && (e.JobPost.CompanyName.Contains(search) || e.JobPost.Role.Contains(search))));
+                e.RecipientEmail.ToLower().Contains(searchLower) ||
+                e.Subject.ToLower().Contains(searchLower) ||
+                (e.JobPost != null && (e.JobPost.CompanyName.ToLower().Contains(searchLower) || e.JobPost.Role.ToLower().Contains(searchLower))));
         }
 
         if (status == "sent")

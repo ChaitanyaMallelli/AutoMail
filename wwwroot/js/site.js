@@ -46,7 +46,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Search Debounce ---
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
-        let debounceTimer;
+        // Auto-focus and place cursor at the end of the text if there's an active query
+        if (searchInput.value) {
+            searchInput.focus();
+            const originalValue = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = originalValue;
+        }
+
         searchInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();

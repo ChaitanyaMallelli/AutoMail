@@ -30,42 +30,89 @@ public class LinkedInScraperService
         {
             using var playwright = await Playwright.CreateAsync();
             
-            // Launch headless browser (use headless: false if debugging)
-            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            // Launch browser visibly so we can see what LinkedIn is complaining about!
+            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = false });
             
             var context = await browser.NewContextAsync(new BrowserNewContextOptions
             {
-                UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ViewportSize = new ViewportSize { Width = 1280, Height = 720 }
             });
             var page = await context.NewPageAsync();
+
+            // Bypass basic WebDriver detection
+            await page.AddInitScriptAsync("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
 
             try
             {
                 _logger.LogInformation("Logging into LinkedIn...");
                 await page.GotoAsync("https://www.linkedin.com/login");
                 
-                // Sometimes it's #username, sometimes it's #session_key
-                var hasUsername = await page.QuerySelectorAsync("#username") != null;
-                if (hasUsername)
+                // Wait for the page DOM to be ready
+                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                
+                // LinkedIn frequently changes input IDs. We will try all common variations, ensuring we only target visible elements.
+                var emailSelector = "input#username:visible, input#session_key:visible, input[name='session_key']:visible, input[type='email']:visible, input[autocomplete='username']:visible";
+                var passSelector = "input#password:visible, input#session_password:visible, input[name='session_password']:visible, input[type='password']:visible, input[autocomplete='current-password']:visible";
+                
+                // Wait for at least one of these to appear
+                await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
+                
+                await page.FillAsync(emailSelector, _email);
+                await page.FillAsync(passSelector, _password);
+                
+                // Try to click the sign-in button or fall back to pressing Enter on the password field
+                try
                 {
-                    await page.FillAsync("#username", _email);
-                    await page.FillAsync("#password", _password);
+                    var submitSelector = "button[type='submit']:visible, button.btn__primary--large:visible, form.login__form button:visible, button[aria-label='Sign in']:visible";
+                    await page.ClickAsync(submitSelector, new PageClickOptions { Timeout = 5000 });
                 }
-                else
+                catch (Exception)
                 {
-                    await page.FillAsync("#session_key", _email);
-                    await page.FillAsync("#session_password", _password);
+                    _logger.LogWarning("Submit button click timed out. Pressing Enter on the password input field instead...");
+                    await page.PressAsync(passSelector, "Enter");
                 }
                 
-                await page.ClickAsync("button[type='submit']");
-                
-                // Wait for feed to load
-                await page.WaitForSelectorAsync(".global-nav__me", new PageWaitForSelectorOptions { Timeout = 15000 });
-                _logger.LogInformation("Login successful.");
+                // Wait for feed to load. Checks for redirect to feed or a checkpoint.
+                _logger.LogInformation("Waiting for home feed to load...");
+                var feedLoaded = false;
+                for (int i = 0; i < 60; i++)
+                {
+                    if (page.Url.Contains("feed") || page.Url.Contains("checkpoint"))
+                    {
+                        feedLoaded = true;
+                        break;
+                    }
+                    await Task.Delay(1000);
+                }
+
+                if (!feedLoaded)
+                {
+                    throw new TimeoutException("Failed to redirect to LinkedIn feed page or checkpoint after login.");
+                }
+
+                // If LinkedIn redirects us to a security checkpoint, pause and notify the user to solve it in the visible window
+                if (page.Url.Contains("checkpoint"))
+                {
+                    _logger.LogWarning("LinkedIn security checkpoint detected. Please complete any verification/captcha in the opened browser window...");
+                    for (int i = 0; i < 90; i++) // up to 90 seconds for checkpoint solving
+                    {
+                        if (page.Url.Contains("feed"))
+                        {
+                            _logger.LogInformation("Security checkpoint successfully completed!");
+                            break;
+                        }
+                        await Task.Delay(1000);
+                    }
+                }
+
+                // Settle delay to let the feed fully render
+                await Task.Delay(5000);
+                _logger.LogInformation("Login successful and feed loaded.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to login. Taking screenshot...");
+                _logger.LogError(ex, "Failed to login. Current URL: {Url}. Taking screenshot...", page.Url);
                 await page.ScreenshotAsync(new PageScreenshotOptions { Path = "login_error.png" });
                 throw;
             }
@@ -90,11 +137,48 @@ public class LinkedInScraperService
                     continue;
                 }
 
-                // Give it a moment to render posts
+                // Give it a moment to render initial posts
                 await Task.Delay(3000);
 
-                // Extract post items. The structure is usually .feed-shared-update-v2
+                // Scroll down to load more posts until we have nearly 50 posts (up to a max of 10 scrolls to avoid hanging)
+                int maxScrolls = 10;
+                int scrollCount = 0;
                 var postElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                _logger.LogInformation("Initially found {Count} posts for keyword {Keyword}.", postElements.Count, keyword);
+
+                while (postElements.Count < 50 && scrollCount < maxScrolls)
+                {
+                    _logger.LogInformation("Scrolling down to load more posts... (Current count: {Count}, Scroll: {Scroll}/{MaxScrolls})", postElements.Count, scrollCount + 1, maxScrolls);
+                    
+                    // Scroll to the bottom of the page
+                    await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
+                    
+                    // Wait for new posts to load and render
+                    await Task.Delay(2500);
+
+                    var currentElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                    
+                    // If no new elements were loaded after a scroll, try a small jog/nudge to trigger lazy loading
+                    if (currentElements.Count == postElements.Count)
+                    {
+                        await page.EvaluateAsync("window.scrollBy(0, -300)");
+                        await Task.Delay(500);
+                        await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
+                        await Task.Delay(2000);
+                        
+                        currentElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                        if (currentElements.Count == postElements.Count)
+                        {
+                            _logger.LogInformation("No more posts available to load for this search.");
+                            break;
+                        }
+                    }
+
+                    postElements = currentElements;
+                    scrollCount++;
+                }
+
+                _logger.LogInformation("Finished loading posts for keyword {Keyword}. Total found: {Count}", keyword, postElements.Count);
                 
                 foreach (var element in postElements)
                 {

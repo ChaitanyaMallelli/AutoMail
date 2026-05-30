@@ -46,20 +46,28 @@ public class JobScoutManager
             .FirstOrDefaultAsync(cancellationToken) ?? 0;
 
         // 1. Scrape new posts
-        var newJobs = await _scraper.ScrapePostsAsync(_searchKeywords);
+        var scrapedJobs = await _scraper.ScrapePostsAsync(_searchKeywords);
         
-        _logger.LogInformation("Found {Count} total posts across all keywords.", newJobs.Count);
+        // Deduplicate locally-scraped posts by URL to avoid multi-keyword overlaps in the same search session
+        var newJobs = scrapedJobs
+            .GroupBy(j => j.LinkedInUrl)
+            .Select(g => g.First())
+            .ToList();
+            
+        _logger.LogInformation("Found {ScrapedCount} raw posts, trimmed to {Count} unique posts across all keywords.", scrapedJobs.Count, newJobs.Count);
 
         foreach (var job in newJobs)
         {
             if (cancellationToken.IsCancellationRequested) break;
 
-            // 2. Check if we already processed this exact post URL
+            // 2. Check if we already processed this exact post URL or identical post content
             var exists = await _dbContext.ScoutedJobs
-                .AnyAsync(j => j.LinkedInUrl == job.LinkedInUrl, cancellationToken);
+                .AnyAsync(j => j.LinkedInUrl == job.LinkedInUrl || 
+                               (job.RawText != null && j.RawText == job.RawText), cancellationToken);
             
             if (exists)
             {
+                _logger.LogInformation("Skipping duplicate post: {Url}", job.LinkedInUrl);
                 continue; // Skip duplicates
             }
 
