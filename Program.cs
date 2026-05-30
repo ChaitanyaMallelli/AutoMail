@@ -5,6 +5,8 @@ using JobAutomation.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
 // Add services to the container.
 builder.Services.AddControllersWithViews(options =>
 {
@@ -26,6 +28,9 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<JobProcessingService>();
 builder.Services.AddScoped<TelegramService>();
 
+// Hosted Background Services
+builder.Services.AddHostedService<JobAutomation.Workers.FollowUpBackgroundService>();
+
 // JSON options
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
@@ -41,6 +46,13 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
+        // Manual Schema Evolution for recently added columns
+        // Since GenerateCreateScript only handles creating non-existent tables, we need to alter existing ones
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"JobPosts\" ADD COLUMN \"TelegramChatId\" bigint NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"JobPosts\" ADD COLUMN \"FollowUpReminderSent\" boolean NOT NULL DEFAULT FALSE;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"JobPosts\" ADD COLUMN \"ResponseNotes\" character varying(2000) NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"Tone\" character varying(50) NULL DEFAULT 'professional';"); } catch { }
+
         // Generate the creation DDL script from our EF model
         var sql = db.Database.GenerateCreateScript();
 

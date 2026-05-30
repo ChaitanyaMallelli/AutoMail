@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using JobAutomation.Data;
 using JobAutomation.Models;
+using JobAutomation.Services;
 using System.IO;
 
 namespace JobAutomation.Controllers;
@@ -10,12 +11,50 @@ namespace JobAutomation.Controllers;
 public class ResumeController : Controller
 {
     private readonly AppDbContext _dbContext;
+    private readonly GeminiService _geminiService;
     private readonly ILogger<ResumeController> _logger;
 
-    public ResumeController(AppDbContext dbContext, ILogger<ResumeController> logger)
+    public ResumeController(AppDbContext dbContext, GeminiService geminiService, ILogger<ResumeController> logger)
     {
         _dbContext = dbContext;
+        _geminiService = geminiService;
         _logger = logger;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AutoParse(IFormFile resumeFile)
+    {
+        if (resumeFile == null || resumeFile.Length == 0 || resumeFile.ContentType != "application/pdf")
+        {
+            return BadRequest(new { success = false, message = "Please upload a valid PDF file." });
+        }
+
+        try
+        {
+            using var ms = new MemoryStream();
+            await resumeFile.CopyToAsync(ms);
+            var pdfBytes = ms.ToArray();
+
+            var extraction = await _geminiService.ExtractResumeDetailsFromPdfAsync(pdfBytes);
+            if (!extraction.IsSuccessful)
+            {
+                return BadRequest(new { success = false, message = extraction.ErrorMessage });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                skills = string.Join(", ", extraction.Skills),
+                experience = extraction.Experience,
+                education = extraction.Education,
+                fullText = extraction.FullText
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-parsing resume");
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
     }
 
     public async Task<IActionResult> Index()

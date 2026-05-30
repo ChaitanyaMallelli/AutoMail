@@ -13,7 +13,8 @@ public enum SourceType
 {
     Text,
     Image,
-    Pdf
+    Pdf,
+    Url
 }
 
 public enum JobStatus
@@ -22,7 +23,14 @@ public enum JobStatus
     EmailGenerated,
     Approved,
     Sent,
-    Failed
+    Failed,
+    Skipped,
+    SavedForLater,
+    FollowUpSent,
+    InterviewScheduled,
+    Rejected,
+    Offered,
+    Ghosted
 }
 
 public class JobPost
@@ -71,6 +79,22 @@ public class JobPost
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Telegram chat ID for sending follow-up reminders
+    /// </summary>
+    public long? TelegramChatId { get; set; }
+
+    /// <summary>
+    /// Whether a follow-up reminder has been sent for this job
+    /// </summary>
+    public bool FollowUpReminderSent { get; set; } = false;
+
+    /// <summary>
+    /// Free-text notes about the application response
+    /// </summary>
+    [MaxLength(2000)]
+    public string? ResponseNotes { get; set; }
 
     // Navigation property
     public GeneratedEmail? GeneratedEmail { get; set; }

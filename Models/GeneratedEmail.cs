@@ -37,5 +37,11 @@ public class GeneratedEmail
 
     public int RetryCount { get; set; } = 0;
 
+    /// <summary>
+    /// Email tone: professional, enthusiastic, or concise
+    /// </summary>
+    [MaxLength(50)]
+    public string? Tone { get; set; } = "professional";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

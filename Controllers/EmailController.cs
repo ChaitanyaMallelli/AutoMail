@@ -11,12 +11,18 @@ public class EmailController : Controller
 {
     private readonly AppDbContext _dbContext;
     private readonly EmailService _emailService;
+    private readonly JobProcessingService _jobProcessingService;
     private readonly ILogger<EmailController> _logger;
 
-    public EmailController(AppDbContext dbContext, EmailService emailService, ILogger<EmailController> logger)
+    public EmailController(
+        AppDbContext dbContext, 
+        EmailService emailService, 
+        JobProcessingService jobProcessingService,
+        ILogger<EmailController> logger)
     {
         _dbContext = dbContext;
         _emailService = emailService;
+        _jobProcessingService = jobProcessingService;
         _logger = logger;
     }
 
@@ -46,6 +52,49 @@ public class EmailController : Controller
         await _dbContext.SaveChangesAsync();
 
         TempData["Success"] = "Email draft updated successfully!";
+        return RedirectToAction("Preview", new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Regenerate(int id, string tone)
+    {
+        var job = await _dbContext.JobPosts
+            .Include(j => j.GeneratedEmail)
+            .FirstOrDefaultAsync(j => j.Id == id);
+
+        if (job == null) return NotFound();
+
+        if (job.GeneratedEmail != null)
+        {
+            _dbContext.GeneratedEmails.Remove(job.GeneratedEmail);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        await _jobProcessingService.ContinueProcessingAsync(id, tone);
+        
+        TempData["Success"] = $"Email regenerated with {tone} tone!";
+        return RedirectToAction("Preview", new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdateStatus(int id, string status, string? notes)
+    {
+        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == id);
+        if (job == null) return NotFound();
+
+        if (Enum.TryParse<JobStatus>(status, out var parsedStatus))
+        {
+            job.Status = parsedStatus;
+        }
+
+        if (!string.IsNullOrEmpty(notes))
+        {
+            job.ResponseNotes = notes;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        TempData["Success"] = "Application status updated successfully!";
         return RedirectToAction("Preview", new { id });
     }
 
@@ -89,36 +138,20 @@ public class EmailController : Controller
             return RedirectToAction("Preview", new { id });
         }
 
-        // Prioritize user's requested specific local resume, fallback to active database resume
         string? attachmentPath = null;
-        var folderResumePath = Path.Combine(Directory.GetCurrentDirectory(), "Resume", "Chaitanya_Mallelli_Resume.pdf");
-        var specificPath = @"C:\Users\Susmita sahoo\Downloads\Chaitanya_Mallelli_Resume.pdf";
-
-        if (System.IO.File.Exists(folderResumePath))
+        var activeResume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.IsActive);
+        
+        if (activeResume != null && !string.IsNullOrEmpty(activeResume.FilePath))
         {
-            attachmentPath = folderResumePath;
-            _logger.LogInformation("Using project-folder relative resume: {Path}", folderResumePath);
-        }
-        else if (System.IO.File.Exists(specificPath))
-        {
-            attachmentPath = specificPath;
-            _logger.LogInformation("Using absolute local resume: {Path}", specificPath);
-        }
-        else
-        {
-            var activeResume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.IsActive);
-            if (activeResume != null && !string.IsNullOrEmpty(activeResume.FilePath))
+            if (activeResume.FilePath.StartsWith("Resume", StringComparison.OrdinalIgnoreCase))
             {
-                if (activeResume.FilePath.StartsWith("Resume", StringComparison.OrdinalIgnoreCase))
-                {
-                    attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), activeResume.FilePath.Replace("/", "\\"));
-                }
-                else
-                {
-                    attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", activeResume.FilePath.TrimStart('/'));
-                }
-                _logger.LogInformation("Using active database resume: {Path}", attachmentPath);
+                attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), activeResume.FilePath.Replace("/", "\\"));
             }
+            else
+            {
+                attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", activeResume.FilePath.TrimStart('/'));
+            }
+            _logger.LogInformation("Using active database resume: {Path}", attachmentPath);
         }
 
         var (success, errorMessage) = await _emailService.SendEmailAsync(email, profile, attachmentPath);

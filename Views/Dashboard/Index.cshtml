@@ -1,207 +1,189 @@
 @model List<JobAutomation.Models.JobPost>
 @{
     ViewData["Title"] = "Dashboard";
-    ViewData["Subtitle"] = "Overview of your job applications";
 }
 
-<!-- Stats Cards -->
-<div class="stats-grid">
-    <div class="stat-card stat-card-primary">
-        <div class="stat-icon">
-            <i class="bi bi-briefcase-fill"></i>
-        </div>
-        <div class="stat-info">
-            <span class="stat-value">@ViewBag.TotalJobs</span>
-            <span class="stat-label">Total Jobs</span>
+<div class="d-flex justify-content-between align-items-center mb-4 mt-2">
+    <h2><i class="bi bi-speedometer2 me-2"></i> Dashboard</h2>
+    <a href="@Url.Action("Index", "Upload")" class="btn btn-glow">
+        <i class="bi bi-plus-lg"></i> New Job
+    </a>
+</div>
+
+<div class="row mb-4 g-3">
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-briefcase"></i></div>
+            <div class="stat-value">@ViewBag.TotalJobs</div>
+            <div class="stat-label">Total Jobs</div>
         </div>
     </div>
-
-    <div class="stat-card stat-card-warning">
-        <div class="stat-icon">
-            <i class="bi bi-hourglass-split"></i>
-        </div>
-        <div class="stat-info">
-            <span class="stat-value">@ViewBag.PendingJobs</span>
-            <span class="stat-label">Pending</span>
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-warning text-dark"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-value">@ViewBag.PendingJobs</div>
+            <div class="stat-label">Pending Review</div>
         </div>
     </div>
-
-    <div class="stat-card stat-card-success">
-        <div class="stat-icon">
-            <i class="bi bi-check-circle-fill"></i>
-        </div>
-        <div class="stat-info">
-            <span class="stat-value">@ViewBag.SentJobs</span>
-            <span class="stat-label">Sent</span>
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-success"><i class="bi bi-send-check"></i></div>
+            <div class="stat-value">@ViewBag.SentJobs</div>
+            <div class="stat-label">Emails Sent</div>
         </div>
     </div>
-
-    <div class="stat-card stat-card-info">
-        <div class="stat-icon">
-            <i class="bi bi-bullseye"></i>
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-info"><i class="bi bi-telephone"></i></div>
+            <div class="stat-value">@ViewBag.Interviews</div>
+            <div class="stat-label">Interviews</div>
         </div>
-        <div class="stat-info">
-            <span class="stat-value">@(ViewBag.AvgMatch)%</span>
-            <span class="stat-label">Avg Match</span>
+    </div>
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: var(--color-success);"><i class="bi bi-award"></i></div>
+            <div class="stat-value">@ViewBag.Offers</div>
+            <div class="stat-label">Offers</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary"><i class="bi bi-graph-up"></i></div>
+            <div class="stat-value">@ViewBag.ResponseRate%</div>
+            <div class="stat-label">Response Rate</div>
         </div>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="filter-bar">
-    <form method="get" class="filter-form" id="filterForm">
-        <div class="filter-search">
-            <i class="bi bi-search"></i>
-            <input type="text" name="search" class="form-control" placeholder="Search companies, roles, skills..."
-                   value="@ViewBag.Search" id="searchInput" />
+<!-- Filters & Search -->
+<div class="glass-panel mb-4 p-3">
+    <form method="get" class="row g-3 align-items-center">
+        <div class="col-md-5">
+            <div class="input-group">
+                <span class="input-group-text bg-transparent text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" name="search" class="form-control" placeholder="Search company, role..." value="@ViewBag.Search">
+            </div>
         </div>
-
-        <div class="filter-selects">
-            <select name="status" class="form-select" onchange="document.getElementById('filterForm').submit()">
-                <option value="">All Status</option>
-                <option value="Pending" selected="@(ViewBag.Status == "Pending" ? "selected" : null)">⏳ Pending</option>
-                <option value="EmailGenerated" selected="@(ViewBag.Status == "EmailGenerated" ? "selected" : null)">📝 Email Ready</option>
-                <option value="Approved" selected="@(ViewBag.Status == "Approved" ? "selected" : null)">✅ Approved</option>
-                <option value="Sent" selected="@(ViewBag.Status == "Sent" ? "selected" : null)">📤 Sent</option>
-                <option value="Failed" selected="@(ViewBag.Status == "Failed" ? "selected" : null)">❌ Failed</option>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">All Statuses</option>
+                <option value="Pending" selected="@(ViewBag.Status == "Pending" ? "selected" : null)">Pending</option>
+                <option value="EmailGenerated" selected="@(ViewBag.Status == "EmailGenerated" ? "selected" : null)">Ready for Review</option>
+                <option value="Sent" selected="@(ViewBag.Status == "Sent" ? "selected" : null)">Sent</option>
+                <option value="FollowUpSent" selected="@(ViewBag.Status == "FollowUpSent" ? "selected" : null)">Follow-up Sent</option>
+                <option value="InterviewScheduled" selected="@(ViewBag.Status == "InterviewScheduled" ? "selected" : null)">Interviewing</option>
+                <option value="Offered" selected="@(ViewBag.Status == "Offered" ? "selected" : null)">Offered</option>
+                <option value="Rejected" selected="@(ViewBag.Status == "Rejected" ? "selected" : null)">Rejected</option>
             </select>
-
-            <select name="sort" class="form-select" onchange="document.getElementById('filterForm').submit()">
+        </div>
+        <div class="col-md-3">
+            <select name="sort" class="form-select">
                 <option value="">Latest First</option>
-                <option value="company" selected="@(ViewBag.Sort == "company" ? "selected" : null)">By Company</option>
-                <option value="role" selected="@(ViewBag.Sort == "role" ? "selected" : null)">By Role</option>
-                <option value="ats" selected="@(ViewBag.Sort == "ats" ? "selected" : null)">By ATS Score</option>
-                <option value="match" selected="@(ViewBag.Sort == "match" ? "selected" : null)">By Match %</option>
+                <option value="company" selected="@(ViewBag.Sort == "company" ? "selected" : null)">Company (A-Z)</option>
+                <option value="role" selected="@(ViewBag.Sort == "role" ? "selected" : null)">Role (A-Z)</option>
+                <option value="match" selected="@(ViewBag.Sort == "match" ? "selected" : null)">Highest Match %</option>
             </select>
         </div>
-
-        <a href="@Url.Action("Index", "Upload")" class="btn btn-glow">
-            <i class="bi bi-plus-lg"></i> New Job
-        </a>
+        <div class="col-md-1 text-end">
+            <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
     </form>
 </div>
 
-<!-- Jobs Table -->
-<div class="table-card">
-    @if (Model.Count == 0)
-    {
-        <div class="empty-state">
-            <div class="empty-icon">
-                <i class="bi bi-inbox"></i>
+<!-- Job Posts Table -->
+<div class="glass-panel p-0">
+    <div class="table-responsive">
+        @if (Model.Count == 0)
+        {
+            <div class="p-5 text-center text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                <h5>No job posts found</h5>
+                <p>Upload a screenshot, PDF, or text job post to get started.</p>
             </div>
-            <h3>No job posts yet</h3>
-            <p>Upload a screenshot, PDF, or text job post to get started.</p>
-            <a href="@Url.Action("Index", "Upload")" class="btn btn-glow mt-3">
-                <i class="bi bi-cloud-arrow-up me-2"></i> Upload Job Post
-            </a>
-        </div>
-    }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table table-hover" id="jobsTable">
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
                 <thead>
                     <tr>
+                        <th>Date</th>
                         <th>Company</th>
                         <th>Role</th>
-                        <th>Location</th>
-                        <th>Source</th>
-                        <th>Match</th>
-                        <th>ATS</th>
+                        <th>Match %</th>
                         <th>Status</th>
-                        <th>Date</th>
-                        <th>Actions</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var job in Model)
                     {
-                        <tr class="job-row" data-status="@job.Status">
+                        <tr>
+                            <td>@job.CreatedAt.ToString("MMM dd, yyyy")</td>
+                            <td class="fw-bold">@job.CompanyName</td>
+                            <td>@job.Role</td>
                             <td>
-                                <div class="company-cell">
-                                    <div class="company-avatar">
-                                        @job.CompanyName[0]
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                        <div class="progress-bar @(job.SkillMatchPercentage >= 70 ? "bg-success" : job.SkillMatchPercentage >= 40 ? "bg-warning" : "bg-danger")"
+                                             role="progressbar" style="width: @job.SkillMatchPercentage%"
+                                             aria-valuenow="@job.SkillMatchPercentage" aria-valuemin="0" aria-valuemax="100"></div>
                                     </div>
-                                    <span class="company-name">@job.CompanyName</span>
-                                </div>
-                            </td>
-                            <td><span class="role-text">@job.Role</span></td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(job.Location))
-                                {
-                                    <span class="location-badge">
-                                        <i class="bi bi-geo-alt"></i> @job.Location
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">—</span>
-                                }
-                            </td>
-                            <td>
-                                <span class="source-badge source-@job.Source.ToString().ToLower()">
-                                    <i class="bi bi-@(job.Source == JobAutomation.Models.JobSource.Telegram ? "telegram" : "cloud-arrow-up")"></i>
-                                    @job.Source
-                                </span>
-                            </td>
-                            <td>
-                                <div class="match-indicator">
-                                    <div class="match-bar">
-                                        <div class="match-fill" style="width: @(job.SkillMatchPercentage)%; background: @(job.SkillMatchPercentage >= 70 ? "var(--color-success)" : job.SkillMatchPercentage >= 40 ? "var(--color-warning)" : "var(--color-danger)")"></div>
-                                    </div>
-                                    <span class="match-text">@(job.SkillMatchPercentage)%</span>
+                                    <span class="small text-muted">@job.SkillMatchPercentage%</span>
                                 </div>
                             </td>
                             <td>
-                                <span class="ats-badge @(job.AtsScore >= 70 ? "ats-high" : job.AtsScore >= 40 ? "ats-mid" : "ats-low")">
-                                    @job.AtsScore
-                                </span>
-                            </td>
-                            <td>
-                                @{
-                                    var statusClass = job.Status switch
-                                    {
-                                        JobAutomation.Models.JobStatus.Sent => "status-sent",
-                                        JobAutomation.Models.JobStatus.Approved => "status-approved",
-                                        JobAutomation.Models.JobStatus.EmailGenerated => "status-ready",
-                                        JobAutomation.Models.JobStatus.Failed => "status-failed",
-                                        _ => "status-pending"
-                                    };
-                                    var statusIcon = job.Status switch
-                                    {
-                                        JobAutomation.Models.JobStatus.Sent => "check-circle-fill",
-                                        JobAutomation.Models.JobStatus.Approved => "check2-circle",
-                                        JobAutomation.Models.JobStatus.EmailGenerated => "envelope-check",
-                                        JobAutomation.Models.JobStatus.Failed => "x-circle-fill",
-                                        _ => "hourglass-split"
-                                    };
-                                }
-                                <span class="status-badge @statusClass">
-                                    <i class="bi bi-@statusIcon"></i>
-                                    @job.Status
-                                </span>
-                            </td>
-                            <td>
-                                <span class="date-text" title="@job.CreatedAt.ToString("f")">
-                                    @job.CreatedAt.ToString("MMM dd")
-                                </span>
-                            </td>
-                            <td>
-                                @if (job.GeneratedEmail != null)
+                                @switch (job.Status)
                                 {
-                                    <a href="@Url.Action("Preview", "Email", new { id = job.Id })" class="btn btn-sm btn-action" title="Preview Email">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
+                                    case JobAutomation.Models.JobStatus.Pending:
+                                        <span class="badge bg-secondary">Processing</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.EmailGenerated:
+                                        <span class="badge bg-info text-dark">Ready for Review</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Approved:
+                                        <span class="badge bg-primary">Approved</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Sent:
+                                        <span class="badge bg-success">Sent</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.FollowUpSent:
+                                        <span class="badge bg-primary">Follow-up Sent</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.InterviewScheduled:
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-telephone"></i> Interview</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Offered:
+                                        <span class="badge" style="background-color: var(--color-success);"><i class="bi bi-award"></i> Offered</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Rejected:
+                                        <span class="badge bg-danger">Rejected</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Ghosted:
+                                        <span class="badge bg-dark">Ghosted</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Skipped:
+                                        <span class="badge bg-secondary">Skipped</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.SavedForLater:
+                                        <span class="badge bg-info text-dark">Saved</span>
+                                        break;
+                                    case JobAutomation.Models.JobStatus.Failed:
+                                        <span class="badge bg-danger">Failed</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary">@job.Status</span>
+                                        break;
                                 }
-                                else
-                                {
-                                    <span class="text-muted text-sm">No email</span>
-                                }
+                            </td>
+                            <td>
+                                <a href="@Url.Action("Preview", "Email", new { id = job.Id })" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        </div>
-    }
+        }
+    </div>
 </div>

@@ -22,6 +22,8 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.CreatedAt);
             entity.HasIndex(e => e.CompanyName);
+            entity.HasIndex(e => e.TelegramChatId);
+            entity.HasIndex(e => new { e.Status, e.FollowUpReminderSent });
             entity.Property(e => e.Status)
                   .HasConversion<string>();
             entity.Property(e => e.Source)
@@ -57,3 +59,4 @@ public class AppDbContext : DbContext
         });
     }
 }
+

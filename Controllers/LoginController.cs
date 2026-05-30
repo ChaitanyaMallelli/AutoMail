@@ -4,11 +4,18 @@ namespace JobAutomation.Controllers;
 
 public class LoginController : Controller
 {
+    private readonly string _configuredPasscode;
+
+    public LoginController(IConfiguration configuration)
+    {
+        _configuredPasscode = configuration["AppPasscode"] ?? "password123";
+    }
+
     [HttpGet]
     public IActionResult Index()
     {
         // If already authenticated, go directly to Dashboard
-        if (Request.Cookies.TryGetValue("AuthPasscode", out var passcode) && passcode == "9390981596")
+        if (Request.Cookies.TryGetValue("AuthPasscode", out var passcode) && passcode == _configuredPasscode)
         {
             return RedirectToAction("Index", "Dashboard");
         }
@@ -18,7 +25,7 @@ public class LoginController : Controller
     [HttpPost]
     public IActionResult Submit(string passcode)
     {
-        if (passcode == "9390981596")
+        if (passcode == _configuredPasscode)
         {
             var options = new CookieOptions
             {
@@ -28,7 +35,7 @@ public class LoginController : Controller
                 SameSite = SameSiteMode.Lax,
                 Path = "/"
             };
-            Response.Cookies.Append("AuthPasscode", "9390981596", options);
+            Response.Cookies.Append("AuthPasscode", _configuredPasscode, options);
             return RedirectToAction("Index", "Dashboard");
         }
 

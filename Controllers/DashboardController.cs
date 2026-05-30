@@ -52,18 +52,36 @@ public class DashboardController : Controller
         var jobPosts = await query.ToListAsync();
 
         // Dashboard stats
-        var totalJobs = await _dbContext.JobPosts.CountAsync();
+        var totalJobs = await _dbContext.JobPosts.CountAsync(j => j.Status != JobStatus.Skipped);
         var pendingJobs = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Pending || j.Status == JobStatus.EmailGenerated);
-        var sentJobs = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Sent);
+        var sentJobs = await _dbContext.JobPosts.CountAsync(j => 
+            j.Status == JobStatus.Sent || 
+            j.Status == JobStatus.FollowUpSent || 
+            j.Status == JobStatus.InterviewScheduled || 
+            j.Status == JobStatus.Rejected || 
+            j.Status == JobStatus.Offered || 
+            j.Status == JobStatus.Ghosted);
+            
         var failedJobs = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Failed);
+        
+        var interviews = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.InterviewScheduled);
+        var offers = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Offered);
+        
         var avgMatch = totalJobs > 0
-            ? (int)await _dbContext.JobPosts.AverageAsync(j => (double)j.SkillMatchPercentage)
+            ? (int)await _dbContext.JobPosts.Where(j => j.Status != JobStatus.Skipped).AverageAsync(j => (double)j.SkillMatchPercentage)
+            : 0;
+
+        var responseRate = sentJobs > 0 
+            ? (int)Math.Round((double)(interviews + offers + await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Rejected)) / sentJobs * 100)
             : 0;
 
         ViewBag.TotalJobs = totalJobs;
         ViewBag.PendingJobs = pendingJobs;
         ViewBag.SentJobs = sentJobs;
         ViewBag.FailedJobs = failedJobs;
+        ViewBag.Interviews = interviews;
+        ViewBag.Offers = offers;
+        ViewBag.ResponseRate = responseRate;
         ViewBag.AvgMatch = avgMatch;
         ViewBag.Search = search;
         ViewBag.Status = status;

@@ -16,6 +16,11 @@
                 <i class="bi bi-card-text me-2"></i> Paste Text
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="url-tab" data-bs-toggle="pill" data-bs-target="#urlUpload" type="button" role="tab">
+                <i class="bi bi-link-45deg me-2"></i> Paste URL
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content" id="uploadTabContent">
@@ -70,6 +75,25 @@
 
                     <button type="submit" class="btn btn-glow btn-lg mt-3" id="processTextBtn">
                         <i class="bi bi-magic me-2"></i> Process with AI
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- URL Upload Tab -->
+        <div class="tab-pane fade" id="urlUpload" role="tabpanel">
+            <form method="post" asp-action="ProcessUrl">
+                <div class="text-upload-card">
+                    <div class="text-input-wrapper">
+                        <div class="input-group input-group-lg mb-3 mt-4">
+                            <span class="input-group-text bg-transparent text-muted"><i class="bi bi-link-45deg"></i></span>
+                            <input type="url" name="jobUrl" class="form-control" placeholder="https://www.linkedin.com/jobs/view/..." required>
+                        </div>
+                        <p class="text-muted small px-2">Paste a link to a job posting from LinkedIn, Indeed, Glassdoor, or any company careers page.</p>
+                    </div>
+
+                    <button type="submit" class="btn btn-glow btn-lg mt-3" id="processUrlBtn">
+                        <i class="bi bi-magic me-2"></i> Extract from URL
                     </button>
                 </div>
             </form>
@@ -184,6 +208,12 @@
         document.querySelector('#textUpload form')?.addEventListener('submit', function() {
             const btn = document.getElementById('processTextBtn');
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+            btn.disabled = true;
+        });
+
+        document.querySelector('#urlUpload form')?.addEventListener('submit', function() {
+            const btn = document.getElementById('processUrlBtn');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Extracting...';
             btn.disabled = true;
         });
     </script>

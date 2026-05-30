@@ -144,9 +144,12 @@
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label fw-bold">Resume File Attachment (PDF/DOC)</label>
-                        <input type="file" name="resumeFile" class="form-control" accept=".pdf,.doc,.docx" required />
+                        <label class="form-label fw-bold">Resume File Attachment (PDF)</label>
+                        <input type="file" id="resumeFileInput" name="resumeFile" class="form-control" accept=".pdf" required />
                         <div class="form-text">This file will be uploaded directly under the local <code>Resume/</code> folder.</div>
+                        <button type="button" class="btn btn-sm btn-outline-info mt-2" id="autoParseBtn">
+                            <i class="bi bi-magic me-1"></i> Auto-Fill Details from PDF (AI)
+                        </button>
                     </div>
 
                     <div class="col-12 pt-2">
@@ -230,3 +233,54 @@
         }
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        document.getElementById('autoParseBtn').addEventListener('click', async function () {
+            const fileInput = document.getElementById('resumeFileInput');
+            if (!fileInput.files.length) {
+                alert('Please select a PDF file first.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (file.type !== 'application/pdf') {
+                alert('Only PDF files are supported for auto-parsing.');
+                return;
+            }
+
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Parsing...';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('resumeFile', file);
+
+            try {
+                const response = await fetch('@Url.Action("AutoParse", "Resume")', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.querySelector('textarea[name="fullText"]').value = result.fullText;
+                    document.querySelector('textarea[name="skills"]').value = result.skills;
+                    document.querySelector('textarea[name="experience"]').value = result.experience;
+                    document.querySelector('textarea[name="education"]').value = result.education;
+                    alert('Resume details extracted successfully! Please review them before uploading.');
+                } else {
+                    alert('Failed to parse resume: ' + result.message);
+                }
+            } catch (error) {
+                alert('An error occurred during parsing.');
+                console.error(error);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
+    </script>
+}

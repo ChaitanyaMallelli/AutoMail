@@ -141,6 +141,28 @@
                 <div class="email-actions">
                     @if (!email.IsSent)
                     {
+                        <div class="mb-3 p-3 bg-dark rounded border border-secondary" style="--bs-bg-opacity: .5;">
+                            <h6 class="mb-2 text-muted"><i class="bi bi-palette me-1"></i> Rewrite Tone</h6>
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline">
+                                <input type="hidden" name="tone" value="professional" />
+                                <button type="submit" class="btn btn-sm @(email.Tone == "professional" ? "btn-primary" : "btn-outline-secondary")">
+                                    💼 Professional
+                                </button>
+                            </form>
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline ms-1">
+                                <input type="hidden" name="tone" value="enthusiastic" />
+                                <button type="submit" class="btn btn-sm @(email.Tone == "enthusiastic" ? "btn-warning" : "btn-outline-secondary")">
+                                    🔥 Enthusiastic
+                                </button>
+                            </form>
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline ms-1">
+                                <input type="hidden" name="tone" value="concise" />
+                                <button type="submit" class="btn btn-sm @(email.Tone == "concise" ? "btn-info" : "btn-outline-secondary")">
+                                    ⚡ Concise
+                                </button>
+                            </form>
+                        </div>
+
                         <form method="post" asp-action="Update" asp-route-id="@Model.Id" class="d-inline">
                             <input type="hidden" name="subject" id="updateSubject" />
                             <input type="hidden" name="body" id="updateBody" />
@@ -180,6 +202,37 @@
                         <i class="bi bi-arrow-left me-1"></i> Back
                     </a>
                 </div>
+
+                @if (email.IsSent || Model.Status == JobAutomation.Models.JobStatus.Sent || Model.Status == JobAutomation.Models.JobStatus.FollowUpSent || Model.Status == JobAutomation.Models.JobStatus.InterviewScheduled || Model.Status == JobAutomation.Models.JobStatus.Rejected || Model.Status == JobAutomation.Models.JobStatus.Offered || Model.Status == JobAutomation.Models.JobStatus.Ghosted)
+                {
+                    <hr class="mt-4 mb-4" />
+                    
+                    <div class="response-tracking-card p-4 rounded" style="background: var(--color-bg-secondary);">
+                        <h5 class="mb-3"><i class="bi bi-person-lines-fill me-2"></i> Application Status Tracking</h5>
+                        
+                        <form method="post" asp-action="UpdateStatus" asp-route-id="@Model.Id">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-5">
+                                    <label class="form-label text-muted">Current Status</label>
+                                    <select name="status" class="form-select">
+                                        <option value="Sent" selected="@(Model.Status == JobAutomation.Models.JobStatus.Sent || Model.Status == JobAutomation.Models.JobStatus.FollowUpSent ? "selected" : null)">📤 Sent / Awaiting Response</option>
+                                        <option value="InterviewScheduled" selected="@(Model.Status == JobAutomation.Models.JobStatus.InterviewScheduled ? "selected" : null)">📞 Interview Scheduled</option>
+                                        <option value="Offered" selected="@(Model.Status == JobAutomation.Models.JobStatus.Offered ? "selected" : null)">🎉 Offer Received</option>
+                                        <option value="Rejected" selected="@(Model.Status == JobAutomation.Models.JobStatus.Rejected ? "selected" : null)">❌ Rejected</option>
+                                        <option value="Ghosted" selected="@(Model.Status == JobAutomation.Models.JobStatus.Ghosted ? "selected" : null)">👻 Ghosted (No Response)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label text-muted">Notes</label>
+                                    <input type="text" name="notes" class="form-control" placeholder="e.g. Interview on Thursday at 2 PM" value="@Model.ResponseNotes" />
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary w-100">Update</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                }
             </div>
         }
         else

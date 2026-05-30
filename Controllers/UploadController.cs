@@ -44,6 +44,29 @@ public class UploadController : Controller
     }
 
     [HttpPost]
+    public async Task<IActionResult> ProcessUrl(string jobUrl)
+    {
+        if (string.IsNullOrWhiteSpace(jobUrl))
+        {
+            TempData["Error"] = "Please enter a job URL.";
+            return RedirectToAction("Index");
+        }
+
+        try
+        {
+            var jobId = await _jobProcessingService.ProcessUrlAsync(jobUrl, JobSource.Upload);
+            TempData["Success"] = "Job URL processed successfully!";
+            return RedirectToAction("Preview", "Email", new { id = jobId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing URL upload");
+            TempData["Error"] = $"Processing failed: {ex.Message}";
+            return RedirectToAction("Index");
+        }
+    }
+
+    [HttpPost]
     public async Task<IActionResult> ProcessFile(IFormFile file)
     {
         if (file == null || file.Length == 0)

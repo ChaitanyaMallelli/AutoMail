@@ -5,6 +5,13 @@ namespace JobAutomation.Filters;
 
 public class PasscodeAuthFilter : IAsyncActionFilter
 {
+    private readonly string _configuredPasscode;
+
+    public PasscodeAuthFilter(IConfiguration configuration)
+    {
+        _configuredPasscode = configuration["AppPasscode"] ?? "password123";
+    }
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var path = context.HttpContext.Request.Path.Value ?? "";
@@ -24,7 +31,7 @@ public class PasscodeAuthFilter : IAsyncActionFilter
         }
 
         // Check passcode cookie
-        if (context.HttpContext.Request.Cookies.TryGetValue("AuthPasscode", out var passcode) && passcode == "9390981596")
+        if (context.HttpContext.Request.Cookies.TryGetValue("AuthPasscode", out var passcode) && passcode == _configuredPasscode)
         {
             await next();
             return;

@@ -2,6 +2,7 @@ using JobAutomation.Data;
 using JobAutomation.DTOs;
 using JobAutomation.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace JobAutomation.Services;
 
@@ -24,7 +25,7 @@ public class JobProcessingService
         _logger = logger;
     }
 
-    public async Task<int> ProcessTextAsync(string text, JobSource source, long? chatId = null)
+    public async Task<int> ProcessTextAsync(string text, JobSource source, long? chatId = null, string tone = "professional")
     {
         _logger.LogInformation("Processing text job post from {Source}", source);
 
@@ -54,12 +55,12 @@ public class JobProcessingService
             TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: AI extracted details successfully! (Company: {extraction.CompanyName}, Role: {extraction.Role}) ✅");
         }
 
-        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Text, text, null, chatId);
+        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Text, text, null, chatId, tone);
         if (chatId.HasValue) TelegramProgressTracker.SetLatestJobId(chatId.Value, jobId);
         return jobId;
     }
 
-    public async Task<int> ProcessImageAsync(byte[] imageBytes, string mimeType, JobSource source, long? chatId = null)
+    public async Task<int> ProcessImageAsync(byte[] imageBytes, string mimeType, JobSource source, long? chatId = null, string tone = "professional")
     {
         _logger.LogInformation("Processing image job post from {Source}", source);
 
@@ -95,12 +96,12 @@ public class JobProcessingService
             TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: AI extracted details successfully! (Company: {extraction.CompanyName}, Role: {extraction.Role}) ✅");
         }
 
-        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Image, null, relativePath, chatId);
+        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Image, null, relativePath, chatId, tone);
         if (chatId.HasValue) TelegramProgressTracker.SetLatestJobId(chatId.Value, jobId);
         return jobId;
     }
 
-    public async Task<int> ProcessPdfAsync(byte[] pdfBytes, JobSource source, long? chatId = null)
+    public async Task<int> ProcessPdfAsync(byte[] pdfBytes, JobSource source, long? chatId = null, string tone = "professional")
     {
         _logger.LogInformation("Processing PDF job post from {Source}", source);
 
@@ -135,15 +136,153 @@ public class JobProcessingService
             TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: AI extracted details successfully! (Company: {extraction.CompanyName}, Role: {extraction.Role}) ✅");
         }
 
-        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Pdf, null, relativePath, chatId);
+        var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Pdf, null, relativePath, chatId, tone);
         if (chatId.HasValue) TelegramProgressTracker.SetLatestJobId(chatId.Value, jobId);
+        return jobId;
+    }
+
+    public async Task<int> ProcessUrlAsync(string url, JobSource source, long? chatId = null, string tone = "professional")
+    {
+        _logger.LogInformation("Processing URL job post from {Source}: {Url}", source, url);
+
+        if (chatId.HasValue)
+        {
+            TelegramProgressTracker.ResetProgress(chatId.Value);
+            TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 1: Received job URL from Telegram ✅");
+            TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 2: Fetching page content and extracting details... ⏳");
+        }
+
+        try
+        {
+            // Fetch URL content
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; AutoMail/1.0)");
+            httpClient.Timeout = TimeSpan.FromSeconds(15);
+            var htmlContent = await httpClient.GetStringAsync(url);
+
+            var extraction = await _geminiService.ExtractJobDetailsFromUrlContentAsync(htmlContent, url);
+            if (!extraction.IsSuccessful)
+            {
+                if (chatId.HasValue)
+                {
+                    TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: AI extraction from URL failed ❌ ({extraction.ErrorMessage})");
+                }
+                var savedId = await SaveJobPostAsync(extraction, source, SourceType.Url, url, null, chatId);
+                if (chatId.HasValue) TelegramProgressTracker.SetLatestJobId(chatId.Value, savedId);
+                return savedId;
+            }
+
+            if (chatId.HasValue)
+            {
+                TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: AI extracted details from URL! (Company: {extraction.CompanyName}, Role: {extraction.Role}) ✅");
+            }
+
+            var jobId = await ProcessExtractionAsync(extraction, source, SourceType.Url, url, null, chatId, tone);
+            if (chatId.HasValue) TelegramProgressTracker.SetLatestJobId(chatId.Value, jobId);
+            return jobId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch or process URL: {Url}", url);
+            if (chatId.HasValue)
+            {
+                TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 2: Failed to fetch URL ❌ ({ex.Message})");
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Check if a similar job (same company + role) already exists in the database
+    /// </summary>
+    public async Task<JobPost?> FindDuplicateAsync(string companyName, string role)
+    {
+        return await _dbContext.JobPosts
+            .Where(j => j.CompanyName.ToLower() == companyName.ToLower()
+                     && j.Role.ToLower() == role.ToLower()
+                     && j.Status != JobStatus.Skipped)
+            .OrderByDescending(j => j.CreatedAt)
+            .FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// Detect if a text string contains a URL
+    /// </summary>
+    public static bool ContainsUrl(string text)
+    {
+        return Regex.IsMatch(text.Trim(), @"^https?://\S+$", RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Continue processing a job post after duplicate/filter confirmation (used by Telegram callbacks)
+    /// </summary>
+    public async Task<int> ContinueProcessingAsync(int jobId, string tone = "professional")
+    {
+        var job = await _dbContext.JobPosts.FirstOrDefaultAsync(j => j.Id == jobId);
+        if (job == null) return 0;
+
+        var resume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.IsActive);
+        var profile = await _dbContext.UserProfiles.FirstOrDefaultAsync();
+
+        if (resume == null || profile == null) return jobId;
+
+        var extraction = new JobExtractionResult
+        {
+            CompanyName = job.CompanyName,
+            Role = job.Role,
+            RequiredSkills = job.RequiredSkills ?? "",
+            RecruiterEmail = job.RecruiterEmail,
+            ExperienceRequired = job.ExperienceRequired,
+            Location = job.Location,
+            RawContent = job.RawContent,
+            IsSuccessful = true
+        };
+
+        var matchResult = _resumeMatchingService.Match(extraction, resume);
+
+        try
+        {
+            var emailDraft = await _geminiService.GenerateEmailAsync(extraction, resume, profile, matchResult, tone);
+            if (emailDraft.IsSuccessful)
+            {
+                var generatedEmail = new GeneratedEmail
+                {
+                    JobPostId = job.Id,
+                    Subject = emailDraft.Subject,
+                    Body = emailDraft.Body,
+                    RecipientEmail = extraction.RecruiterEmail ?? emailDraft.RecipientEmail,
+                    Tone = tone,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _dbContext.GeneratedEmails.Add(generatedEmail);
+                job.Status = JobStatus.EmailGenerated;
+                job.UpdatedAt = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate email for job post {JobPostId}", job.Id);
+        }
+
         return jobId;
     }
 
     private async Task<int> ProcessExtractionAsync(
         JobExtractionResult extraction, JobSource source, SourceType sourceType,
-        string? rawContent, string? imagePath, long? chatId = null)
+        string? rawContent, string? imagePath, long? chatId = null, string tone = "professional")
     {
+        // Step 2.5: Duplicate detection
+        var duplicate = await FindDuplicateAsync(extraction.CompanyName, extraction.Role);
+        if (duplicate != null && chatId.HasValue)
+        {
+            TelegramProgressTracker.UpdateProgress(chatId.Value,
+                $"Step 2.5: ⚠️ Duplicate found! Already applied to {extraction.CompanyName} - {extraction.Role} on {duplicate.CreatedAt:MMM dd} (Status: {duplicate.Status})");
+            // Store info for Telegram callback handling — we continue but flag it
+            _logger.LogInformation("Duplicate job detected: {Company} - {Role} (existing JobId: {ExistingId})", extraction.CompanyName, extraction.Role, duplicate.Id);
+        }
+
         if (chatId.HasValue)
         {
             TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 3: Comparing job requirements with your active Resume... ⏳");
@@ -164,6 +303,16 @@ public class JobProcessingService
             if (resume != null && matchResult != null)
             {
                 TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 3: Resume match completed: ATS Score: {matchResult.AtsScore}%, Skills Match: {matchResult.MatchPercentage}% ✅");
+
+                // Step 3.5: Smart filter — warn on low match
+                if (matchResult.MatchPercentage < 30)
+                {
+                    var missingSkillsText = matchResult.MissingSkills.Any()
+                        ? string.Join(", ", matchResult.MissingSkills.Take(5))
+                        : "various required skills";
+                    TelegramProgressTracker.UpdateProgress(chatId.Value,
+                        $"Step 3.5: ⚠️ Low match ({matchResult.MatchPercentage}%). Missing: {missingSkillsText}");
+                }
             }
             else
             {
@@ -187,6 +336,7 @@ public class JobProcessingService
             AtsScore = matchResult?.AtsScore ?? 0,
             SkillMatchPercentage = matchResult?.MatchPercentage ?? 0,
             Status = JobStatus.Pending,
+            TelegramChatId = chatId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -203,7 +353,7 @@ public class JobProcessingService
 
             try
             {
-                var emailDraft = await _geminiService.GenerateEmailAsync(extraction, resume, profile, matchResult);
+                var emailDraft = await _geminiService.GenerateEmailAsync(extraction, resume, profile, matchResult, tone);
                 if (emailDraft.IsSuccessful)
                 {
                     var generatedEmail = new GeneratedEmail
@@ -212,6 +362,7 @@ public class JobProcessingService
                         Subject = emailDraft.Subject,
                         Body = emailDraft.Body,
                         RecipientEmail = extraction.RecruiterEmail ?? emailDraft.RecipientEmail,
+                        Tone = tone,
                         CreatedAt = DateTime.UtcNow
                     };
 
@@ -266,6 +417,7 @@ public class JobProcessingService
             RawContent = rawContent ?? extraction.RawContent,
             ImagePath = imagePath,
             Status = JobStatus.Pending,
+            TelegramChatId = chatId,
             CreatedAt = DateTime.UtcNow
         };
 

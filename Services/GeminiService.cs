@@ -42,17 +42,145 @@ public class GeminiService
         return ParseExtractionResponse(response, "[PDF upload]");
     }
 
-    public async Task<EmailDraftDto> GenerateEmailAsync(JobExtractionResult job, Resume resume, UserProfile profile, ResumeMatchResult matchResult)
+    public async Task<JobExtractionResult> ExtractJobDetailsFromUrlContentAsync(string htmlContent, string url)
+    {
+        var prompt = $@"You are a job posting analyzer. The following is the HTML/text content fetched from a job listing URL ({url}).
+Extract the following details from this content.
+Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
+
+{{
+  ""companyName"": ""extracted company name or 'Unknown'"",
+  ""role"": ""job title/role"",
+  ""requiredSkills"": ""comma-separated list of required skills"",
+  ""recruiterEmail"": ""email address if found, or null"",
+  ""experienceRequired"": ""experience requirement e.g. '2-4 years' or null"",
+  ""location"": ""job location or 'Remote' or null""
+}}
+
+Rules:
+- Extract information accurately from the content.
+- Ignore navigation menus, footers, ads, and other non-job content.
+- If a field is not found, use null.
+- For recruiterEmail, look for email addresses carefully.
+- For skills, list all technical and soft skills mentioned.
+- Be thorough but accurate. Never make up information.
+
+Content:
+{htmlContent[..Math.Min(htmlContent.Length, 8000)]}";
+
+        var response = await CallGeminiAsync(prompt);
+        return ParseExtractionResponse(response, url);
+    }
+
+    public async Task<ResumeExtractionResult> ExtractResumeDetailsFromPdfAsync(byte[] pdfBytes)
     {
         try
         {
-            var prompt = BuildEmailPrompt(job, resume, profile, matchResult);
+            var prompt = @"You are a resume/CV parser. Analyze this PDF resume and extract structured information.
+Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
+
+{
+  ""fullText"": ""complete text content of the resume"",
+  ""skills"": [""skill1"", ""skill2"", ""skill3""],
+  ""experience"": ""brief summary of work experience including companies, roles, and durations"",
+  ""education"": ""education details including degrees, institutions, and years""
+}
+
+Rules:
+- Extract ALL technical skills, tools, frameworks, and languages mentioned
+- Include soft skills if explicitly mentioned
+- For experience, summarize each role briefly
+- For education, include degree, institution, and graduation year
+- Be thorough and accurate. Extract everything visible in the resume.";
+
+            var response = await CallGeminiWithImageAsync(prompt, pdfBytes, "application/pdf");
+
+            var cleaned = CleanJsonResponse(response);
+            var result = JsonConvert.DeserializeObject<Dictionary<string, object?>>(cleaned);
+            if (result == null)
+                throw new Exception("Failed to deserialize resume extraction result");
+
+            var skills = new List<string>();
+            if (result.TryGetValue("skills", out var skillsObj) && skillsObj != null)
+            {
+                var skillsArray = JArray.Parse(skillsObj.ToString()!);
+                skills = skillsArray.Select(s => s.ToString()).ToList();
+            }
+
+            return new ResumeExtractionResult
+            {
+                FullText = result.GetValueOrDefault("fullText")?.ToString() ?? "",
+                Skills = skills,
+                Experience = result.GetValueOrDefault("experience")?.ToString(),
+                Education = result.GetValueOrDefault("education")?.ToString(),
+                IsSuccessful = true
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to extract resume details from PDF via Gemini");
+            return new ResumeExtractionResult
+            {
+                IsSuccessful = false,
+                ErrorMessage = $"Failed to parse resume: {ex.Message}"
+            };
+        }
+    }
+
+    public async Task<EmailDraftDto> GenerateEmailAsync(JobExtractionResult job, Resume resume, UserProfile profile, ResumeMatchResult matchResult, string tone = "professional")
+    {
+        try
+        {
+            var prompt = BuildEmailPrompt(job, resume, profile, matchResult, tone);
             var response = await CallGeminiAsync(prompt);
             return ParseEmailResponse(response, job.RecruiterEmail ?? "");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating email via Gemini");
+            return new EmailDraftDto
+            {
+                IsSuccessful = false,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    public async Task<EmailDraftDto> GenerateFollowUpEmailAsync(JobPost job, UserProfile profile)
+    {
+        try
+        {
+            var prompt = $@"Generate a polite professional follow-up email for a job application. Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
+
+{{
+  ""subject"": ""email subject line"",
+  ""body"": ""full email body as plain text""
+}}
+
+Context:
+- Applicant Name: {profile.FullName}
+- Applicant Email: {profile.Email}
+- Applicant Phone: {profile.Phone ?? "N/A"}
+- Company: {job.CompanyName}
+- Role Applied For: {job.Role}
+- Original Application Date: {job.CreatedAt:MMMM dd, yyyy}
+- Days Since Application: {(DateTime.UtcNow - job.CreatedAt).Days}
+
+Email rules:
+- Polite and professional follow-up tone
+- Reference the original application date
+- Express continued interest in the role
+- Keep it brief (under 120 words)
+- Don't be pushy or demanding
+- Include contact details in the closing
+- Plain text only, no HTML";
+
+            var response = await CallGeminiAsync(prompt);
+            return ParseEmailResponse(response, job.RecruiterEmail ?? "");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating follow-up email via Gemini");
             return new EmailDraftDto
             {
                 IsSuccessful = false,
@@ -109,11 +237,35 @@ Rules:
 - Never fabricate or guess information not in the image.";
     }
 
-    private string BuildEmailPrompt(JobExtractionResult job, Resume resume, UserProfile profile, ResumeMatchResult matchResult)
+    private string BuildEmailPrompt(JobExtractionResult job, Resume resume, UserProfile profile, ResumeMatchResult matchResult, string tone = "professional")
     {
         var matchingSkillsText = matchResult.MatchingSkills.Any()
             ? string.Join(", ", matchResult.MatchingSkills)
             : "general professional skills";
+
+        var toneInstruction = tone.ToLower() switch
+        {
+            "enthusiastic" => @"
+Tone rules:
+- Show genuine enthusiasm and passion for the role
+- Use energetic but professional language
+- Express excitement about the company and opportunity
+- Be warm and personable while remaining professional
+- Use active, dynamic verbs",
+            "concise" => @"
+Tone rules:
+- Be extremely brief and to-the-point
+- Maximum 80 words for the body
+- No filler phrases or unnecessary pleasantries
+- State qualifications directly
+- Get straight to the value proposition",
+            _ => @"
+Tone rules:
+- Professional and formal tone
+- Warm but business-appropriate language
+- Structured and clear communication
+- Standard corporate email format"
+        };
 
         return $@"Generate a professional job application email. Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
 
@@ -139,6 +291,7 @@ Applicant's MATCHING skills (use ONLY these, never fabricate):
 {matchingSkillsText}
 
 Match score: {matchResult.MatchPercentage}%
+{toneInstruction}
 
 Email format rules:
 - Professional subject line mentioning the role
@@ -148,8 +301,7 @@ Email format rules:
 - NEVER claim skills or experience the applicant doesn't have
 - Professional closing with contact details
 - Keep it concise (under 200 words)
-- Plain text only, no HTML
-- Warm but professional tone";
+- Plain text only, no HTML";
     }
 
     private async Task<string> CallGeminiAsync(string prompt)
@@ -255,19 +407,23 @@ Email format rules:
         }
     }
 
+    private string CleanJsonResponse(string geminiResponse)
+    {
+        var cleaned = geminiResponse.Trim();
+        if (cleaned.StartsWith("```json"))
+            cleaned = cleaned[7..];
+        else if (cleaned.StartsWith("```"))
+            cleaned = cleaned[3..];
+        if (cleaned.EndsWith("```"))
+            cleaned = cleaned[..^3];
+        return cleaned.Trim();
+    }
+
     private JobExtractionResult ParseExtractionResponse(string geminiResponse, string rawContent)
     {
         try
         {
-            // Clean up response - remove markdown code fences if present
-            var cleaned = geminiResponse.Trim();
-            if (cleaned.StartsWith("```json"))
-                cleaned = cleaned[7..];
-            else if (cleaned.StartsWith("```"))
-                cleaned = cleaned[3..];
-            if (cleaned.EndsWith("```"))
-                cleaned = cleaned[..^3];
-            cleaned = cleaned.Trim();
+            var cleaned = CleanJsonResponse(geminiResponse);
 
             var result = JsonConvert.DeserializeObject<Dictionary<string, string?>>(cleaned);
             if (result == null)
@@ -301,14 +457,7 @@ Email format rules:
     {
         try
         {
-            var cleaned = geminiResponse.Trim();
-            if (cleaned.StartsWith("```json"))
-                cleaned = cleaned[7..];
-            else if (cleaned.StartsWith("```"))
-                cleaned = cleaned[3..];
-            if (cleaned.EndsWith("```"))
-                cleaned = cleaned[..^3];
-            cleaned = cleaned.Trim();
+            var cleaned = CleanJsonResponse(geminiResponse);
 
             var result = JsonConvert.DeserializeObject<Dictionary<string, string?>>(cleaned);
             if (result == null)
