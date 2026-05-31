@@ -83,7 +83,9 @@ public class ResumeController : Controller
             {
                 var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "Resume");
                 Directory.CreateDirectory(uploadsDir);
-                var fileName = $"resume_{DateTime.Now:yyyyMMdd_HHmmss}{Path.GetExtension(resumeFile.FileName)}";
+                var originalName = Path.GetFileNameWithoutExtension(resumeFile.FileName);
+                var ext = Path.GetExtension(resumeFile.FileName);
+                var fileName = $"{originalName}{ext}";
                 var absolutePath = Path.Combine(uploadsDir, fileName);
                 using var stream = new FileStream(absolutePath, FileMode.Create);
                 await resumeFile.CopyToAsync(stream);

@@ -67,6 +67,8 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplySubject\" character varying(200) NULL;"); } catch { }
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplySnippet\" character varying(1000) NULL;"); } catch { }
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplyClassification\" character varying(50) NULL;"); } catch { }
+        // Link manually placed resume file to active resume record if FilePath is missing
+        try { db.Database.ExecuteSqlRaw("UPDATE \"Resumes\" SET \"FilePath\" = 'Resume/Chaitanya_Mallelli_Resume.pdf' WHERE \"IsActive\" = true AND (\"FilePath\" IS NULL OR \"FilePath\" = '');"); } catch { }
 
         // Generate the creation DDL script from our EF model
         var sql = db.Database.GenerateCreateScript();
