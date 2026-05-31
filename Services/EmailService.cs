@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using JobAutomation.Data;
 using JobAutomation.Models;
 
 namespace JobAutomation.Services;
@@ -8,14 +9,16 @@ public class EmailService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
+    private readonly AppDbContext _dbContext;
 
-    public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+    public EmailService(IConfiguration configuration, ILogger<EmailService> logger, AppDbContext dbContext)
     {
         _configuration = configuration;
         _logger = logger;
+        _dbContext = dbContext;
     }
 
-    public async Task<(bool Success, string? ErrorMessage)> SendEmailAsync(GeneratedEmail email, UserProfile profile, string? attachmentPath = null)
+    public async Task<(bool Success, string? ErrorMessage)> SendEmailAsync(GeneratedEmail email, UserProfile profile, string? attachmentPath = null, string? trackingBaseUrl = null)
     {
         try
         {
@@ -41,6 +44,18 @@ public class EmailService
             };
 
             mailMessage.To.Add(new MailAddress(email.RecipientEmail));
+
+            // Generate tracking token and embed pixel
+            if (!string.IsNullOrEmpty(trackingBaseUrl))
+            {
+                email.TrackingToken = Guid.NewGuid();
+                await _dbContext.SaveChangesAsync();
+
+                var pixelUrl = $"{trackingBaseUrl.TrimEnd('/')}/track/open/{email.TrackingToken}";
+                var encodedBody = WebUtility.HtmlEncode(email.Body).Replace("\n", "<br/>");
+                mailMessage.Body = $"<html><body><div style=\"font-family:sans-serif;font-size:14px;\">{encodedBody}</div><img src=\"{pixelUrl}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;\"/></body></html>";
+                mailMessage.IsBodyHtml = true;
+            }
 
             // Attach resume file if available
             if (!string.IsNullOrEmpty(attachmentPath) && File.Exists(attachmentPath))

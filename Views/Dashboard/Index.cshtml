@@ -202,6 +202,24 @@
                                             <a href="@Url.Action("Preview", "Email", new { id = job.Id })" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-eye"></i> View
                                             </a>
+                                            @if (job.GeneratedEmail?.OpenedAt.HasValue == true)
+                                            {
+                                                <span class="btn btn-sm btn-outline-success disabled" title="Email opened @job.GeneratedEmail.OpenedAt?.ToString("MMM dd, HH:mm")">
+                                                    <i class="bi bi-eye-fill"></i>
+                                                </span>
+                                            }
+                                            @if (job.GeneratedEmail?.RepliedAt.HasValue == true)
+                                            {
+                                                var replyIcon = job.GeneratedEmail.ReplyClassification switch {
+                                                    "interview"  => "bi-telephone-fill text-info",
+                                                    "rejected"   => "bi-x-circle-fill text-danger",
+                                                    "interested" => "bi-star-fill text-warning",
+                                                    _            => "bi-envelope-open-fill text-secondary"
+                                                };
+                                                <span class="btn btn-sm btn-outline-secondary disabled" title="Reply: @job.GeneratedEmail.ReplyClassification">
+                                                    <i class="bi @replyIcon"></i>
+                                                </span>
+                                            }
                                             <!-- Temporarily disabled Co-Pilot
                                             <a href="@Url.Action("CoPilot", "Interview", new { id = job.Id })" class="btn btn-sm btn-outline-danger" target="_blank">
                                                 <i class="bi bi-mic-fill"></i> Co-Pilot

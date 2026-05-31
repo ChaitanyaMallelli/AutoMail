@@ -13,17 +13,20 @@ public class EmailController : Controller
     private readonly EmailService _emailService;
     private readonly JobProcessingService _jobProcessingService;
     private readonly ILogger<EmailController> _logger;
+    private readonly IConfiguration _configuration;
 
     public EmailController(
-        AppDbContext dbContext, 
-        EmailService emailService, 
+        AppDbContext dbContext,
+        EmailService emailService,
         JobProcessingService jobProcessingService,
-        ILogger<EmailController> logger)
+        ILogger<EmailController> logger,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _emailService = emailService;
         _jobProcessingService = jobProcessingService;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<IActionResult> Preview(int id)
@@ -140,21 +143,27 @@ public class EmailController : Controller
 
         string? attachmentPath = null;
         var activeResume = await _dbContext.Resumes.FirstOrDefaultAsync(r => r.IsActive);
-        
+
         if (activeResume != null && !string.IsNullOrEmpty(activeResume.FilePath))
         {
-            if (activeResume.FilePath.StartsWith("Resume", StringComparison.OrdinalIgnoreCase))
+            // Normalize: convert forward slashes to OS separator and resolve from app root
+            var normalizedRelative = activeResume.FilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), normalizedRelative);
+            _logger.LogInformation("Resume attachment path resolved: {Path}", attachmentPath);
+
+            if (!System.IO.File.Exists(attachmentPath))
             {
-                attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), activeResume.FilePath.Replace("/", "\\"));
+                _logger.LogWarning("Resume file not found at resolved path: {Path} — email will be sent without attachment.", attachmentPath);
+                attachmentPath = null;
             }
-            else
-            {
-                attachmentPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", activeResume.FilePath.TrimStart('/'));
-            }
-            _logger.LogInformation("Using active database resume: {Path}", attachmentPath);
+        }
+        else if (activeResume != null)
+        {
+            _logger.LogWarning("Active resume has no file path (text-only resume) — email will be sent without attachment.");
         }
 
-        var (success, errorMessage) = await _emailService.SendEmailAsync(email, profile, attachmentPath);
+        var baseUrl = _configuration?["AppBaseUrl"];
+        var (success, errorMessage) = await _emailService.SendEmailAsync(email, profile, attachmentPath, baseUrl);
 
         if (success)
         {

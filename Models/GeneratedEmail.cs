@@ -44,4 +44,22 @@ public class GeneratedEmail
     public string? Tone { get; set; } = "professional";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Feature 9: Email Open Tracking
+    public Guid? TrackingToken { get; set; }
+    public DateTime? OpenedAt { get; set; }
+
+    // Feature 8: Gmail Reply Detection
+    [MaxLength(500)]
+    public string? MessageId { get; set; }
+    public DateTime? RepliedAt { get; set; }
+
+    [MaxLength(200)]
+    public string? ReplySubject { get; set; }
+
+    [MaxLength(1000)]
+    public string? ReplySnippet { get; set; }
+
+    [MaxLength(50)]
+    public string? ReplyClassification { get; set; }
 }

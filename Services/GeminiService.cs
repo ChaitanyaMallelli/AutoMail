@@ -385,6 +385,38 @@ Email format rules:
 - Plain text only, no HTML";
     }
 
+    public async Task<string> ClassifyReplyAsync(string replyText, string company, string role)
+    {
+        var prompt = $"""
+            You are an AI assistant classifying recruiter email replies.
+
+            A job seeker applied to {role} at {company}. The recruiter replied:
+
+            ---
+            {replyText.Substring(0, Math.Min(1500, replyText.Length))}
+            ---
+
+            Classify this reply into EXACTLY ONE of these categories (return only the category word, nothing else):
+            - interview (recruiter wants to schedule an interview or call)
+            - rejected (application was declined)
+            - interested (recruiter is interested but no interview yet — asking for more info, portfolio, etc.)
+            - other (anything else — OOO, acknowledgement, etc.)
+
+            Return only the single category word.
+            """;
+
+        try
+        {
+            var result = await CallGeminiAsync(prompt);
+            var cleaned = result.Trim().ToLower().Split('\n')[0].Trim();
+            return cleaned is "interview" or "rejected" or "interested" or "other" ? cleaned : "other";
+        }
+        catch
+        {
+            return "other";
+        }
+    }
+
     private async Task<string> CallGeminiAsync(string prompt)
     {
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";

@@ -17,8 +17,9 @@ public class PasscodeAuthFilter : IAsyncActionFilter
         var path = context.HttpContext.Request.Path.Value ?? "";
 
         // Bypass webhook, login endpoints, health checks, or executing checks
-        if (path.StartsWith("/api/telegram", StringComparison.OrdinalIgnoreCase) || 
-            path.StartsWith("/Login", StringComparison.OrdinalIgnoreCase) || 
+        if (path.StartsWith("/api/telegram", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/Login", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/track/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/Telegram/IsExecuting", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/Telegram/GetLiveStatus", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/Telegram/Progress", StringComparison.OrdinalIgnoreCase) || // Let tracker load without login if background checks run

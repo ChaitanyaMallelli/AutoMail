@@ -35,6 +35,7 @@ builder.Services.AddScoped<JobScoutManager>();
 // Hosted Background Services
 builder.Services.AddHostedService<JobAutomation.Workers.FollowUpBackgroundService>();
 builder.Services.AddHostedService<JobAutomation.Workers.JobScoutBackgroundService>();
+builder.Services.AddHostedService<JobAutomation.Workers.GmailReplyMonitorService>();
 
 // JSON options
 builder.Services.AddControllers()
@@ -57,6 +58,15 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"JobPosts\" ADD COLUMN \"FollowUpReminderSent\" boolean NOT NULL DEFAULT FALSE;"); } catch { }
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"JobPosts\" ADD COLUMN \"ResponseNotes\" character varying(2000) NULL;"); } catch { }
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"Tone\" character varying(50) NULL DEFAULT 'professional';"); } catch { }
+        // Feature 9: Email Open Tracking columns
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"TrackingToken\" uuid NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"OpenedAt\" timestamp with time zone NULL;"); } catch { }
+        // Feature 8: Gmail Reply Detection columns
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"MessageId\" character varying(500) NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"RepliedAt\" timestamp with time zone NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplySubject\" character varying(200) NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplySnippet\" character varying(1000) NULL;"); } catch { }
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplyClassification\" character varying(50) NULL;"); } catch { }
 
         // Generate the creation DDL script from our EF model
         var sql = db.Database.GenerateCreateScript();
