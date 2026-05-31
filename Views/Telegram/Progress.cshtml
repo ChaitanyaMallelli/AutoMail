@@ -95,6 +95,15 @@
                     </div>
 
                 </div>
+
+                <!-- Web approval banner (shown only for web-triggered applications) -->
+                <div id="webApprovalAlert" class="mt-4 p-3 rounded border text-center" style="display: none; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2) !important;">
+                    <h5 class="text-white fw-bold mb-2"><i class="bi bi-envelope-check-fill text-info me-1 animate-pulse"></i> Email Draft is Ready!</h5>
+                    <p class="text-muted text-sm mb-3">Since you applied through the dashboard, you can review, edit, and send the generated email right here.</p>
+                    <a href="#" id="webApprovalLink" class="btn btn-glow rounded-pill px-4 fw-bold">
+                        <i class="bi bi-eye-fill me-1"></i> Review &amp; Send Email
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -249,14 +258,26 @@
 
                 // Show active pipeline (use the most recent execution)
                 const activeProcess = data[data.length - 1];
+                const isWebTrigger = activeProcess.chatId === 999;
                 
                 document.getElementById("emptyTracker").style.display = "none";
                 document.getElementById("activeTracker").style.display = "block";
 
-                document.getElementById("chatIdLabel").innerText = activeProcess.chatId;
-                
+                // Hide web approval banner by default; show it only for web jobs with a ready jobId
+                if (!isWebTrigger) document.getElementById("webApprovalAlert").style.display = "none";
+
+                document.getElementById("chatIdLabel").innerText = isWebTrigger ? "Web Dashboard" : activeProcess.chatId;
+
                 if (activeProcess.jobId && activeProcess.jobId > 0) {
                     document.getElementById("jobIdLabel").innerHTML = `<a href="/Email/Preview/${activeProcess.jobId}" class="text-accent-light fw-bold text-decoration-none"><i class="bi bi-eye"></i> Job #${activeProcess.jobId}</a>`;
+
+                    // Show the local review banner for web-triggered applications
+                    if (isWebTrigger) {
+                        const alert = document.getElementById("webApprovalAlert");
+                        const link = document.getElementById("webApprovalLink");
+                        link.href = `/Email/Preview/${activeProcess.jobId}`;
+                        alert.style.display = "block";
+                    }
                 } else {
                     document.getElementById("jobIdLabel").innerText = "Extracting... ⏳";
                 }

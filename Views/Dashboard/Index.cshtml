@@ -275,9 +275,23 @@
                                         @(sJob.RawText != null && sJob.RawText.Length > 90 ? sJob.RawText.Substring(0, 90) + "..." : sJob.RawText)
                                     </td>
                                     <td class="align-middle text-end pe-4">
-                                        <a href="@sJob.LinkedInUrl" target="_blank" class="btn btn-sm btn-outline-info">
-                                            <i class="bi bi-box-arrow-up-right me-1"></i> View Post
-                                        </a>
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <a href="@sJob.LinkedInUrl" target="_blank" class="btn btn-sm btn-outline-info">
+                                                <i class="bi bi-box-arrow-up-right me-1"></i> View Post
+                                            </a>
+                                            @if (sJob.Status == JobAutomation.Models.ScoutedJobStatus.New || sJob.Status == JobAutomation.Models.ScoutedJobStatus.SentToTelegram)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-glow btn-web-apply" data-job-id="@sJob.Id">
+                                                    <i class="bi bi-send-fill me-1"></i> Apply
+                                                </button>
+                                            }
+                                            else if (sJob.Status == JobAutomation.Models.ScoutedJobStatus.Applied)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-success" disabled>
+                                                    <i class="bi bi-check-circle-fill me-1"></i> Applied
+                                                </button>
+                                            }
+                                        </div>
                                     </td>
                                 </tr>
                             }
@@ -291,6 +305,36 @@
 
 @section Scripts {
     <script>
+        // Web-apply handler for scouted jobs
+        document.querySelectorAll('.btn-web-apply').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const jobId = this.dataset.jobId;
+                const originalHtml = this.innerHTML;
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Starting...';
+
+                try {
+                    const response = await fetch(`@Url.Action("ApplyScoutedJob", "Dashboard")?id=${jobId}`, {
+                        method: 'POST'
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        window.location.href = result.redirectUrl;
+                    } else {
+                        alert('Failed to start: ' + (result.message || 'Unknown error'));
+                        this.disabled = false;
+                        this.innerHTML = originalHtml;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Request failed. Check console for details.');
+                    this.disabled = false;
+                    this.innerHTML = originalHtml;
+                }
+            });
+        });
+
         document.getElementById('btnRunScout').addEventListener('click', async function() {
             const btn = this;
             const icon = document.getElementById('scoutIcon');

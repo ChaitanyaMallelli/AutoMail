@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using JobAutomation.Data;
 using JobAutomation.Models;
+using JobAutomation.Services;
 
 namespace JobAutomation.Controllers;
 
@@ -9,11 +10,13 @@ public class DashboardController : Controller
 {
     private readonly AppDbContext _dbContext;
     private readonly ILogger<DashboardController> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public DashboardController(AppDbContext dbContext, ILogger<DashboardController> logger)
+    public DashboardController(AppDbContext dbContext, ILogger<DashboardController> logger, IServiceScopeFactory scopeFactory)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<IActionResult> Index(string? search, string? status, string? sort)
@@ -98,7 +101,7 @@ public class DashboardController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> RunScoutNow([FromServices] JobAutomation.Services.JobScoutManager scoutManager)
+    public async Task<IActionResult> RunScoutNow([FromServices] JobScoutManager scoutManager)
     {
         try
         {
@@ -110,5 +113,42 @@ public class DashboardController : Controller
             _logger.LogError(ex, "Failed to run manual scout cycle.");
             return StatusCode(500, new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ApplyScoutedJob(int id)
+    {
+        var scoutedJob = await _dbContext.ScoutedJobs.FirstOrDefaultAsync(s => s.Id == id);
+        if (scoutedJob == null)
+            return NotFound(new { success = false, message = "Scouted job not found." });
+
+        if (string.IsNullOrWhiteSpace(scoutedJob.LinkedInUrl))
+            return BadRequest(new { success = false, message = "No URL available for this scouted job." });
+
+        scoutedJob.Status = ScoutedJobStatus.Applied;
+        await _dbContext.SaveChangesAsync();
+
+        TelegramProgressTracker.ResetProgress(999);
+        var url = scoutedJob.LinkedInUrl;
+        var scopeFactory = _scopeFactory;
+        var logger = _logger;
+
+        // Create a new DI scope so services aren't disposed when the request ends
+        _ = Task.Run(async () =>
+        {
+            using var scope = scopeFactory.CreateScope();
+            var jobProcessingService = scope.ServiceProvider.GetRequiredService<JobProcessingService>();
+            try
+            {
+                await jobProcessingService.ProcessUrlAsync(url, JobSource.Upload, 999);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Web-triggered pipeline failed for scouted job {Id}", id);
+                TelegramProgressTracker.UpdateProgress(999, $"Step 2: Pipeline crashed ❌ ({ex.Message})");
+            }
+        });
+
+        return Ok(new { success = true, redirectUrl = "/Telegram/Progress" });
     }
 }

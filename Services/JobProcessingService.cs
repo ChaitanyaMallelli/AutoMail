@@ -374,7 +374,10 @@ public class JobProcessingService
                     if (chatId.HasValue)
                     {
                         TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 4: Professional email draft generated successfully! ✅");
-                        TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 5: Sending approval request to your Telegram... ⏳");
+                        if (chatId.Value == 999)
+                            TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 5: Email draft ready! Review and approve on dashboard ✅");
+                        else
+                            TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 5: Sending approval request to your Telegram... ⏳");
                     }
                 }
                 else if (chatId.HasValue)
