@@ -140,7 +140,7 @@
                             @foreach (var job in Model)
                             {
                                 <tr>
-                                    <td>@job.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td>@job.CreatedAt.ToIst().ToString("MMM dd, yyyy")</td>
                                     <td class="fw-bold">@job.CompanyName</td>
                                     <td>@job.Role</td>
                                     <td>
@@ -204,7 +204,7 @@
                                             </a>
                                             @if (job.GeneratedEmail?.OpenedAt.HasValue == true)
                                             {
-                                                <span class="btn btn-sm btn-outline-success disabled" title="Email opened @job.GeneratedEmail.OpenedAt?.ToString("MMM dd, HH:mm")">
+                                                <span class="btn btn-sm btn-outline-success disabled" title="Email opened @job.GeneratedEmail.OpenedAt.ToIstString("MMM dd, HH:mm", true)">
                                                     <i class="bi bi-eye-fill"></i>
                                                 </span>
                                             }
@@ -267,7 +267,7 @@
                             @foreach (var sJob in scoutedJobs)
                             {
                                 <tr>
-                                    <td class="align-middle">@sJob.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                    <td class="align-middle">@sJob.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</td>
                                     <td class="align-middle"><span class="badge bg-secondary">@sJob.KeywordMatched</span></td>
                                     <td class="align-middle">
                                         @switch (sJob.Status)

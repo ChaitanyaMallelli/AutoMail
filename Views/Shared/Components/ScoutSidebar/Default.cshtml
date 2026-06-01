@@ -1,0 +1,112 @@
+@using JobAutomation.Models
+@model List<JobAutomation.Models.ScoutedJob>
+
+<div class="nav-section mt-2">
+    <span class="nav-section-title d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-robot me-1"></i> LinkedIn Scout</span>
+        <span class="badge rounded-pill" style="background:rgba(99,102,241,0.2);color:var(--color-accent-light);font-size:10px;">
+            @Model.Count(j => j.Status == ScoutedJobStatus.SentToTelegram) live
+        </span>
+    </span>
+
+    @if (!Model.Any())
+    {
+        <div class="px-2 py-2 text-muted" style="font-size:12px;">
+            <i class="bi bi-clock-history me-1"></i> No jobs scouted yet
+        </div>
+    }
+    else
+    {
+        <div class="scout-sidebar-list">
+            @foreach (var job in Model)
+            {
+                var statusColor = job.Status switch {
+                    ScoutedJobStatus.SentToTelegram  => "#4ade80",
+                    ScoutedJobStatus.Applied         => "#818cf8",
+                    ScoutedJobStatus.IgnoredByGemini => "#475569",
+                    _                                => "#94a3b8"
+                };
+                var statusIcon = job.Status switch {
+                    ScoutedJobStatus.SentToTelegram  => "bi-send-fill",
+                    ScoutedJobStatus.Applied         => "bi-check-circle-fill",
+                    ScoutedJobStatus.IgnoredByGemini => "bi-x-circle",
+                    _                                => "bi-circle"
+                };
+                var preview = job.RawText != null && job.RawText.Length > 45
+                    ? job.RawText.Substring(0, 45) + "…"
+                    : job.RawText ?? "No preview";
+
+                <a href="@job.LinkedInUrl" target="_blank"
+                   class="scout-sidebar-item"
+                   title="@job.RawText">
+                    <div class="scout-sidebar-dot" style="color:@statusColor;">
+                        <i class="bi @statusIcon"></i>
+                    </div>
+                    <div class="scout-sidebar-text">
+                        <span class="scout-sidebar-keyword">@job.KeywordMatched</span>
+                        <span class="scout-sidebar-preview">@preview</span>
+                        <span class="scout-sidebar-time">@job.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</span>
+                    </div>
+                </a>
+            }
+        </div>
+
+        <a href="@Url.Action("Index", "Dashboard")#scout-logs"
+           class="nav-link mt-1" style="font-size:12px;opacity:0.7;">
+            <i class="bi bi-arrow-right-circle me-1"></i>
+            <span>View All Scout Logs</span>
+        </a>
+    }
+</div>
+
+<style>
+    .scout-sidebar-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 4px;
+    }
+    .scout-sidebar-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: background 0.2s;
+        cursor: pointer;
+    }
+    .scout-sidebar-item:hover {
+        background: rgba(255,255,255,0.05);
+    }
+    .scout-sidebar-dot {
+        font-size: 10px;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+    .scout-sidebar-text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .scout-sidebar-keyword {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .scout-sidebar-preview {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .scout-sidebar-time {
+        font-size: 10px;
+        color: rgba(148,163,184,0.5);
+        margin-top: 1px;
+    }
+</style>

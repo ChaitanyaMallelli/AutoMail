@@ -39,11 +39,16 @@ public class JobScoutManager
     {
         _logger.LogInformation("Starting LinkedIn scrape...");
         
-        // Find the user's ChatId from previous jobs so we know where to send the alert
-        var chatId = await _dbContext.JobPosts
-            .Where(j => j.TelegramChatId != null && j.TelegramChatId != 0)
-            .Select(j => j.TelegramChatId)
-            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        // Get chatId — prefer UserProfile (survives job data clears), fall back to JobPosts
+        var chatId = (await _dbContext.UserProfiles
+            .Where(p => p.TelegramChatId != null && p.TelegramChatId != 0)
+            .Select(p => p.TelegramChatId)
+            .FirstOrDefaultAsync(cancellationToken))
+            ?? (await _dbContext.JobPosts
+                .Where(j => j.TelegramChatId != null && j.TelegramChatId != 0)
+                .Select(j => j.TelegramChatId)
+                .FirstOrDefaultAsync(cancellationToken))
+            ?? 0;
 
         // 1. Scrape new posts
         var scrapedJobs = await _scraper.ScrapePostsAsync(_searchKeywords);
@@ -75,25 +80,24 @@ public class JobScoutManager
             _logger.LogInformation("Analyzing post with Gemini: {Url}", job.LinkedInUrl);
             var isRelevant = await _gemini.IsPostRelevantAsync(job.RawText ?? "");
 
-            if (isRelevant)
-            {
-                _logger.LogInformation("✅ PERFECT MATCH: Requires 3+ years experience! Saving to DB.");
-                job.Status = ScoutedJobStatus.SentToTelegram;
-                _dbContext.ScoutedJobs.Add(job);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
-                // Send Telegram Push Notification
-                if (chatId != 0)
-                {
-                    await _telegram.SendJobAlertAsync(chatId, job);
-                }
-            }
-            else
+            if (!isRelevant)
             {
                 _logger.LogInformation("❌ IGNORED: Does not meet 3+ years experience requirement.");
                 job.Status = ScoutedJobStatus.IgnoredByGemini;
                 _dbContext.ScoutedJobs.Add(job);
                 await _dbContext.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+
+            _logger.LogInformation("✅ PERFECT MATCH: Requires 3+ years experience. Saving to DB.");
+            job.Status = ScoutedJobStatus.SentToTelegram;
+            _dbContext.ScoutedJobs.Add(job);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            // Send Telegram Push Notification
+            if (chatId != 0)
+            {
+                await _telegram.SendJobAlertAsync(chatId, job);
             }
             
             // Random delay to avoid hitting Gemini too fast

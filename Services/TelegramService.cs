@@ -64,6 +64,17 @@ public class TelegramService
             TelegramProgressTracker.RecordExecutionStart();
             chatId = (long?)message["chat"]?["id"] ?? 0;
 
+            // Persist chatId to UserProfile so scout alerts survive job data clears
+            if (chatId != 0)
+            {
+                var profile = await _dbContext.UserProfiles.FirstOrDefaultAsync();
+                if (profile != null && profile.TelegramChatId != chatId)
+                {
+                    profile.TelegramChatId = chatId;
+                    await _dbContext.SaveChangesAsync();
+                }
+            }
+
             // Check for photo
             var photos = message["photo"] as JArray;
             if (photos != null && photos.Count > 0)

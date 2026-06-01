@@ -63,7 +63,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="text-sm text-muted">@resume.UploadedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td class="text-sm text-muted">@resume.UploadedAt.ToIst().ToString("MMM dd, yyyy HH:mm")</td>
                                     <td class="text-center">
                                         @if (resume.IsActive)
                                         {

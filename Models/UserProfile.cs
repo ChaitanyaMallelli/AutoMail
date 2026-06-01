@@ -22,4 +22,7 @@ public class UserProfile
     [MaxLength(300)]
     [Url]
     public string? LinkedInUrl { get; set; }
+
+    // Persisted so scout alerts still work after job data is cleared
+    public long? TelegramChatId { get; set; }
 }
