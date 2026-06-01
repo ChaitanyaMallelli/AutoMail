@@ -4,29 +4,460 @@
     ViewData["Subtitle"] = $"{Model.CompanyName} — {Model.Role}";
 }
 
+<style>
+    /* ── Preview grid ── */
+    .preview-container {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    .preview-sidebar {
+        position: sticky;
+        top: calc(68px + 16px);
+    }
+    .preview-main {
+        min-width: 0;
+    }
+
+    /* ── Sidebar card refinements ── */
+    .sidebar-section-title {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        color: var(--color-text-muted);
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .sidebar-section-title i {
+        font-size: 13px;
+        color: var(--color-accent-light);
+    }
+    .detail-item {
+        margin-bottom: 14px;
+    }
+    .detail-item:last-of-type {
+        margin-bottom: 0;
+    }
+    .detail-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--color-text-muted);
+        display: block;
+        margin-bottom: 3px;
+    }
+    .detail-value {
+        font-size: 13.5px;
+        color: var(--color-text-primary);
+        font-weight: 500;
+        display: block;
+        line-height: 1.5;
+    }
+    .detail-value i {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        margin-right: 3px;
+    }
+    .detail-divider {
+        border: none;
+        border-top: 1px solid var(--color-border);
+        margin: 16px 0;
+    }
+
+    /* ── Score circles ── */
+    .score-display {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 8px 0 4px;
+    }
+    .score-item {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+    .score-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid;
+        flex-direction: column;
+        gap: 1px;
+    }
+    .score-high {
+        border-color: var(--color-success);
+        background: var(--color-success-bg);
+        box-shadow: 0 0 18px rgba(34,197,94,0.22);
+    }
+    .score-mid {
+        border-color: var(--color-warning);
+        background: var(--color-warning-bg);
+        box-shadow: 0 0 18px rgba(245,158,11,0.22);
+    }
+    .score-low {
+        border-color: var(--color-danger);
+        background: var(--color-danger-bg);
+        box-shadow: 0 0 18px rgba(239,68,68,0.22);
+    }
+    .score-number {
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -1px;
+    }
+    .score-high .score-number { color: var(--color-success-light); }
+    .score-mid  .score-number { color: var(--color-warning-light); }
+    .score-low  .score-number { color: var(--color-danger-light); }
+    .score-label {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.2;
+        letter-spacing: 0.2px;
+    }
+
+    /* ── Skills tags ── */
+    .skills-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .skill-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: var(--color-accent-bg);
+        color: var(--color-accent-light);
+        font-size: 11px;
+        font-weight: 500;
+        border: 1px solid rgba(99,102,241,0.22);
+        line-height: 1.5;
+        transition: all 0.15s ease;
+    }
+    .skill-tag:hover {
+        background: rgba(99,102,241,0.20);
+        border-color: rgba(99,102,241,0.40);
+        color: #c7d2fe;
+    }
+
+    /* ── Source image ── */
+    .source-image {
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid var(--color-border);
+        display: block;
+    }
+
+    /* ── Email card header ── */
+    .email-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--color-border);
+        flex-wrap: wrap;
+    }
+    .email-card-header h5 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--color-text-primary);
+        letter-spacing: -0.3px;
+    }
+    .email-card-header h5 i {
+        color: var(--color-accent-light);
+        font-size: 18px;
+    }
+    .email-status {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* ── Email fields ── */
+    .email-field {
+        margin-bottom: 16px;
+    }
+    .email-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--color-text-muted);
+        margin-bottom: 6px;
+        display: block;
+    }
+    .email-input {
+        background: var(--color-bg-input) !important;
+        border: 1px solid var(--color-border-medium) !important;
+        color: var(--color-text-primary) !important;
+        border-radius: 8px !important;
+        font-size: 14px !important;
+        padding: 9px 14px !important;
+        width: 100%;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .email-textarea {
+        background: var(--color-bg-input) !important;
+        border: 1px solid var(--color-border-medium) !important;
+        color: var(--color-text-primary) !important;
+        border-radius: 8px !important;
+        font-size: 13.5px !important;
+        line-height: 1.7 !important;
+        resize: vertical;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
+        padding: 12px 14px !important;
+        width: 100%;
+    }
+    .email-input:focus,
+    .email-textarea:focus {
+        border-color: var(--color-accent) !important;
+        box-shadow: 0 0 0 3px var(--color-accent-glow) !important;
+        outline: none !important;
+    }
+    .email-input[readonly],
+    .email-textarea[readonly] {
+        background: rgba(13,21,38,0.50) !important;
+        color: var(--color-text-secondary) !important;
+        cursor: default;
+    }
+
+    /* ── Tone selector ── */
+    .tone-section {
+        background: rgba(10,15,30,0.55);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+    }
+    .tone-section-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: var(--color-text-muted);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .tone-section-label i {
+        color: var(--color-accent-light);
+        font-size: 12px;
+    }
+    .tone-btn-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .tone-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid var(--color-border-medium);
+        background: transparent;
+        color: var(--color-text-secondary);
+        transition: all 0.15s ease;
+        line-height: 1.4;
+    }
+    .tone-btn:hover {
+        background: rgba(148,163,184,0.10);
+        color: var(--color-text-primary);
+        border-color: var(--color-border-medium);
+    }
+    .tone-btn.tone-active-professional {
+        background: var(--color-accent-bg);
+        color: var(--color-accent-light);
+        border-color: rgba(99,102,241,0.40);
+    }
+    .tone-btn.tone-active-enthusiastic {
+        background: rgba(245,158,11,0.12);
+        color: var(--color-warning-light);
+        border-color: rgba(245,158,11,0.35);
+    }
+    .tone-btn.tone-active-concise {
+        background: var(--color-info-bg);
+        color: var(--color-info-light);
+        border-color: var(--color-info-border);
+    }
+
+    /* ── Action row ── */
+    .email-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--color-border);
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .email-actions .ms-auto {
+        margin-left: auto;
+    }
+
+    /* ── Reply card ── */
+    .reply-card {
+        border-radius: 10px;
+        padding: 20px;
+        border-left: 4px solid;
+        background: rgba(10,15,30,0.55);
+        border-top: 1px solid var(--color-border);
+        border-right: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--color-border);
+    }
+    .reply-card-interview { border-left-color: rgba(99,102,241,0.70); }
+    .reply-card-rejected  { border-left-color: rgba(239,68,68,0.60); }
+    .reply-card-interested{ border-left-color: rgba(251,191,36,0.60); }
+    .reply-card-default   { border-left-color: rgba(148,163,184,0.35); }
+    .reply-card-header-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 4px;
+        flex-wrap: wrap;
+    }
+    .reply-card-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+    }
+    .reply-card-title i { color: #60a5fa; font-size: 16px; }
+    .reply-card-meta {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+    .reply-card-meta strong {
+        color: var(--color-text-secondary);
+        font-weight: 600;
+    }
+    .reply-snippet {
+        background: transparent;
+        border: none;
+        padding: 0;
+        margin: 0;
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        white-space: pre-wrap;
+        line-height: 1.65;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: var(--font-family);
+    }
+
+    /* ── Status tracking card ── */
+    .tracking-card {
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        padding: 20px 22px;
+    }
+    .tracking-card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .tracking-card-title i { color: var(--color-accent-light); font-size: 15px; }
+
+    /* ── Mobile ── */
+    @@media (max-width: 991.98px) {
+        .preview-container {
+            grid-template-columns: 1fr;
+        }
+        .preview-sidebar {
+            position: static;
+        }
+        .email-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .email-actions .btn,
+        .email-actions form .btn,
+        .email-actions form {
+            width: 100%;
+        }
+        .email-actions .btn {
+            justify-content: center;
+        }
+        .email-actions .ms-auto {
+            margin-left: 0;
+        }
+        .tone-btn-group {
+            flex-direction: column;
+        }
+        .tone-btn {
+            justify-content: center;
+        }
+    }
+</style>
+
 <div class="preview-container">
-    <!-- Job Details Sidebar -->
+
+    <!-- ════════════════════════════════ SIDEBAR ════════════════════════════════ -->
     <div class="preview-sidebar">
+
+        <!-- Job Details Card -->
         <div class="detail-card">
-            <h5 class="detail-card-title">
-                <i class="bi bi-building"></i> Job Details
-            </h5>
+            <div class="sidebar-section-title">
+                <i class="bi bi-building"></i>
+                Job Details
+            </div>
 
             <div class="detail-item">
                 <span class="detail-label">Company</span>
                 <span class="detail-value">@Model.CompanyName</span>
             </div>
+
             <div class="detail-item">
                 <span class="detail-label">Role</span>
                 <span class="detail-value">@Model.Role</span>
             </div>
+
             @if (!string.IsNullOrEmpty(Model.Location))
             {
                 <div class="detail-item">
                     <span class="detail-label">Location</span>
-                    <span class="detail-value"><i class="bi bi-geo-alt"></i> @Model.Location</span>
+                    <span class="detail-value">
+                        <i class="bi bi-geo-alt"></i>@Model.Location
+                    </span>
                 </div>
             }
+
             @if (!string.IsNullOrEmpty(Model.ExperienceRequired))
             {
                 <div class="detail-item">
@@ -34,6 +465,7 @@
                     <span class="detail-value">@Model.ExperienceRequired</span>
                 </div>
             }
+
             @if (!string.IsNullOrEmpty(Model.RequiredSkills))
             {
                 <div class="detail-item">
@@ -76,49 +508,64 @@
         @if (!string.IsNullOrEmpty(Model.ImagePath))
         {
             <div class="detail-card">
-                <h5 class="detail-card-title">
-                    <i class="bi bi-image"></i> Source Image
-                </h5>
+                <div class="sidebar-section-title">
+                    <i class="bi bi-image"></i>
+                    Source Image
+                </div>
                 <img src="@Model.ImagePath" alt="Job post screenshot" class="source-image" />
             </div>
         }
     </div>
 
-    <!-- Email Preview -->
+    <!-- ════════════════════════════════ MAIN COLUMN ════════════════════════════════ -->
     <div class="preview-main">
         @if (Model.GeneratedEmail != null)
         {
             var email = Model.GeneratedEmail;
 
             <div class="email-card">
+
+                <!-- Card Header: title + status badges -->
                 <div class="email-card-header">
                     <h5><i class="bi bi-envelope-paper-fill"></i> Generated Email</h5>
-                    <div class="email-status d-flex flex-wrap gap-2 align-items-center">
+                    <div class="email-status">
                         @if (email.IsSent)
                         {
-                            <span class="status-badge status-sent"><i class="bi bi-check-circle-fill"></i> Sent @email.SentAt.ToIstString("MMM dd, HH:mm", true)</span>
+                            <span class="status-badge status-sent">
+                                <i class="bi bi-check-circle-fill"></i>
+                                Sent @email.SentAt.ToIstString("MMM dd, HH:mm", true)
+                            </span>
                         }
                         else if (email.IsApproved)
                         {
-                            <span class="status-badge status-approved"><i class="bi bi-check2-circle"></i> Approved</span>
+                            <span class="status-badge status-approved">
+                                <i class="bi bi-check2-circle"></i> Approved
+                            </span>
                         }
                         else
                         {
-                            <span class="status-badge status-ready"><i class="bi bi-pencil-square"></i> Draft</span>
-                        }
-                        @if (email.OpenedAt.HasValue)
-                        {
-                            <span class="status-badge" style="background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);" title="Opened @email.OpenedAt.ToIstString("MMM dd, HH:mm", true)">
-                                <i class="bi bi-eye-fill me-1"></i> Opened @email.OpenedAt.ToIstString("MMM dd, HH:mm", true)
+                            <span class="status-badge status-ready">
+                                <i class="bi bi-pencil-square"></i> Draft
                             </span>
                         }
+
+                        @if (email.OpenedAt.HasValue)
+                        {
+                            <span class="status-badge"
+                                  style="background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);"
+                                  title="Opened @email.OpenedAt.ToIstString("MMM dd, HH:mm", true)">
+                                <i class="bi bi-eye-fill"></i>
+                                Opened @email.OpenedAt.ToIstString("MMM dd, HH:mm", true)
+                            </span>
+                        }
+
                         @if (email.RepliedAt.HasValue)
                         {
-                            var badgeColor = email.ReplyClassification switch {
-                                "interview" => "rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)",
-                                "rejected"  => "rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25)",
-                                "interested"=> "rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25)",
-                                _           => "rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.2)"
+                            var badgeStyle = email.ReplyClassification switch {
+                                "interview"  => "background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)",
+                                "rejected"   => "background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25)",
+                                "interested" => "background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25)",
+                                _            => "background:rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.2)"
                             };
                             var badgeIcon = email.ReplyClassification switch {
                                 "interview"  => "bi-telephone-fill",
@@ -132,35 +579,37 @@
                                 "interested" => "Interested",
                                 _            => "Reply Received"
                             };
-                            <span class="status-badge" style="background:@badgeColor;" title="Replied @email.RepliedAt.ToIstString("MMM dd, HH:mm", true)">
-                                <i class="bi @badgeIcon me-1"></i> @badgeText
+                            <span class="status-badge" style="@badgeStyle"
+                                  title="Replied @email.RepliedAt.ToIstString("MMM dd, HH:mm", true)">
+                                <i class="bi @badgeIcon"></i> @badgeText
                             </span>
                         }
                     </div>
                 </div>
 
+                <!-- Email form fields -->
                 <form method="post" id="emailForm">
                     <div class="email-field">
-                        <label class="email-label">To:</label>
+                        <label class="email-label">To</label>
                         <input type="email" name="recipientEmail" class="form-control email-input"
                                value="@email.RecipientEmail" id="recipientEmail" @(email.IsSent ? "readonly" : "") />
                     </div>
 
                     <div class="email-field">
-                        <label class="email-label">Subject:</label>
+                        <label class="email-label">Subject</label>
                         <input type="text" name="subject" class="form-control email-input"
                                value="@email.Subject" id="subjectInput" @(email.IsSent ? "readonly" : "") />
                     </div>
 
                     <div class="email-field">
-                        <label class="email-label">Body:</label>
+                        <label class="email-label">Body</label>
                         <textarea name="body" class="form-control email-textarea" id="bodyInput"
-                                  rows="14" @(email.IsSent ? "readonly" : "")>@email.Body</textarea>
+                                  rows="16" @(email.IsSent ? "readonly" : "")>@email.Body</textarea>
                     </div>
 
                     @if (!string.IsNullOrEmpty(email.ErrorMessage))
                     {
-                        <div class="alert alert-danger mt-3">
+                        <div class="alert alert-danger mt-2" style="border-radius:8px;font-size:13px;">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
                             <strong>Last Error:</strong> @email.ErrorMessage
                             <span class="text-muted ms-2">(Retry count: @email.RetryCount)</span>
@@ -168,32 +617,43 @@
                     }
                 </form>
 
-                <div class="email-actions">
-                    @if (!email.IsSent)
-                    {
-                        <div class="mb-3 p-3 bg-dark rounded border border-secondary" style="--bs-bg-opacity: .5;">
-                            <h6 class="mb-2 text-muted"><i class="bi bi-palette me-1"></i> Rewrite Tone</h6>
-                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline">
+                @if (!email.IsSent)
+                {
+                    <!-- Tone Selector -->
+                    <div class="tone-section">
+                        <div class="tone-section-label">
+                            <i class="bi bi-palette"></i>
+                            Rewrite Tone
+                        </div>
+                        <div class="tone-btn-group">
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" style="display:contents;">
                                 <input type="hidden" name="tone" value="professional" />
-                                <button type="submit" class="btn btn-sm @(email.Tone == "professional" ? "btn-primary" : "btn-outline-secondary")">
-                                    💼 Professional
+                                <button type="submit" class="tone-btn @(email.Tone == "professional" ? "tone-active-professional" : "")">
+                                    <i class="bi bi-briefcase"></i> Professional
                                 </button>
                             </form>
-                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline ms-1">
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" style="display:contents;">
                                 <input type="hidden" name="tone" value="enthusiastic" />
-                                <button type="submit" class="btn btn-sm @(email.Tone == "enthusiastic" ? "btn-warning" : "btn-outline-secondary")">
-                                    🔥 Enthusiastic
+                                <button type="submit" class="tone-btn @(email.Tone == "enthusiastic" ? "tone-active-enthusiastic" : "")">
+                                    <i class="bi bi-fire"></i> Enthusiastic
                                 </button>
                             </form>
-                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" class="d-inline ms-1">
+                            <form method="post" asp-action="Regenerate" asp-route-id="@Model.Id" style="display:contents;">
                                 <input type="hidden" name="tone" value="concise" />
-                                <button type="submit" class="btn btn-sm @(email.Tone == "concise" ? "btn-info" : "btn-outline-secondary")">
-                                    ⚡ Concise
+                                <button type="submit" class="tone-btn @(email.Tone == "concise" ? "tone-active-concise" : "")">
+                                    <i class="bi bi-lightning-charge"></i> Concise
                                 </button>
                             </form>
                         </div>
+                    </div>
+                }
 
-                        <form method="post" asp-action="Update" asp-route-id="@Model.Id" class="d-inline">
+                <!-- Action Buttons -->
+                <div class="email-actions">
+                    @if (!email.IsSent)
+                    {
+                        <!-- Save Changes -->
+                        <form method="post" asp-action="Update" asp-route-id="@Model.Id">
                             <input type="hidden" name="subject" id="updateSubject" />
                             <input type="hidden" name="body" id="updateBody" />
                             <input type="hidden" name="recipientEmail" id="updateRecipient" />
@@ -204,14 +664,16 @@
 
                         @if (!email.IsApproved)
                         {
-                            <form method="post" asp-action="Approve" asp-route-id="@Model.Id" class="d-inline">
+                            <!-- Approve -->
+                            <form method="post" asp-action="Approve" asp-route-id="@Model.Id">
                                 <button type="submit" class="btn btn-approve">
                                     <i class="bi bi-check-lg me-1"></i> Approve
                                 </button>
                             </form>
                         }
 
-                        <form method="post" asp-action="Send" asp-route-id="@Model.Id" class="d-inline">
+                        <!-- Send Email -->
+                        <form method="post" asp-action="Send" asp-route-id="@Model.Id">
                             <button type="submit" class="btn btn-glow"
                                     onclick="return confirm('Send this email to @email.RecipientEmail?')">
                                 <i class="bi bi-send-fill me-1"></i> Send Email
@@ -220,7 +682,8 @@
 
                         @if (email.ErrorMessage != null)
                         {
-                            <form method="post" asp-action="Retry" asp-route-id="@Model.Id" class="d-inline">
+                            <!-- Retry -->
+                            <form method="post" asp-action="Retry" asp-route-id="@Model.Id">
                                 <button type="submit" class="btn btn-warning">
                                     <i class="bi bi-arrow-clockwise me-1"></i> Retry
                                 </button>
@@ -228,38 +691,51 @@
                         }
                     }
 
-                    <a href="@Url.Action("Index", "Dashboard")" class="btn btn-outline-secondary">
+                    <!-- Back button pushed to the right on desktop -->
+                    <a href="@Url.Action("Index", "Dashboard")" class="btn btn-outline-secondary ms-auto">
                         <i class="bi bi-arrow-left me-1"></i> Back
                     </a>
                 </div>
 
+                <!-- Reply Card -->
                 @if (email.RepliedAt.HasValue && !string.IsNullOrEmpty(email.ReplySnippet))
                 {
-                    var replyBorderColor = email.ReplyClassification switch {
-                        "interview"  => "rgba(99,102,241,0.35)",
-                        "rejected"   => "rgba(239,68,68,0.3)",
-                        "interested" => "rgba(251,191,36,0.3)",
-                        _            => "rgba(148,163,184,0.2)"
+                    var replyCardClass = email.ReplyClassification switch {
+                        "interview"  => "reply-card-interview",
+                        "rejected"   => "reply-card-rejected",
+                        "interested" => "reply-card-interested",
+                        _            => "reply-card-default"
                     };
-                    <hr class="mt-4 mb-4" />
-                    <div class="p-4 rounded border" style="background:rgba(15,23,42,0.5);border-color:@replyBorderColor !important;">
-                        <h5 class="mb-1 fw-bold text-white"><i class="bi bi-envelope-open-fill me-2 text-info"></i> Recruiter Reply</h5>
-                        <p class="text-muted text-xs mb-3">Received @email.RepliedAt.ToIstString("MMM dd, yyyy HH:mm", true) &nbsp;·&nbsp; <span class="fw-bold">@(email.ReplySubject ?? "No subject")</span></p>
-                        <pre class="text-muted" style="white-space:pre-wrap;font-size:13px;max-height:200px;overflow-y:auto;background:transparent;border:none;padding:0;">@email.ReplySnippet</pre>
+                    <hr style="border-color:var(--color-border);margin:28px 0 20px;" />
+                    <div class="reply-card @replyCardClass">
+                        <div class="reply-card-header-row">
+                            <p class="reply-card-title">
+                                <i class="bi bi-envelope-open-fill"></i>
+                                Recruiter Reply
+                            </p>
+                        </div>
+                        <p class="reply-card-meta">
+                            Received @email.RepliedAt.ToIstString("MMM dd, yyyy HH:mm", true)
+                            &nbsp;&middot;&nbsp;
+                            <strong>@(email.ReplySubject ?? "No subject")</strong>
+                        </p>
+                        <pre class="reply-snippet">@email.ReplySnippet</pre>
                     </div>
                 }
 
+                <!-- Application Status Tracking -->
                 @if (email.IsSent || Model.Status == JobAutomation.Models.JobStatus.Sent || Model.Status == JobAutomation.Models.JobStatus.FollowUpSent || Model.Status == JobAutomation.Models.JobStatus.InterviewScheduled || Model.Status == JobAutomation.Models.JobStatus.Rejected || Model.Status == JobAutomation.Models.JobStatus.Offered || Model.Status == JobAutomation.Models.JobStatus.Ghosted)
                 {
-                    <hr class="mt-4 mb-4" />
-                    
-                    <div class="response-tracking-card p-4 rounded" style="background: var(--color-bg-secondary);">
-                        <h5 class="mb-3"><i class="bi bi-person-lines-fill me-2"></i> Application Status Tracking</h5>
-                        
+                    <hr style="border-color:var(--color-border);margin:28px 0 20px;" />
+                    <div class="tracking-card">
+                        <div class="tracking-card-title">
+                            <i class="bi bi-person-lines-fill"></i>
+                            Application Status Tracking
+                        </div>
                         <form method="post" asp-action="UpdateStatus" asp-route-id="@Model.Id">
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-5">
-                                    <label class="form-label text-muted">Current Status</label>
+                                    <label class="form-label">Current Status</label>
                                     <select name="status" class="form-select">
                                         <option value="Sent" selected="@(Model.Status == JobAutomation.Models.JobStatus.Sent || Model.Status == JobAutomation.Models.JobStatus.FollowUpSent ? "selected" : null)">📤 Sent / Awaiting Response</option>
                                         <option value="InterviewScheduled" selected="@(Model.Status == JobAutomation.Models.JobStatus.InterviewScheduled ? "selected" : null)">📞 Interview Scheduled</option>
@@ -269,8 +745,10 @@
                                     </select>
                                 </div>
                                 <div class="col-md-5">
-                                    <label class="form-label text-muted">Notes</label>
-                                    <input type="text" name="notes" class="form-control" placeholder="e.g. Interview on Thursday at 2 PM" value="@Model.ResponseNotes" />
+                                    <label class="form-label">Notes</label>
+                                    <input type="text" name="notes" class="form-control"
+                                           placeholder="e.g. Interview on Thursday at 2 PM"
+                                           value="@Model.ResponseNotes" />
                                 </div>
                                 <div class="col-md-2">
                                     <button type="submit" class="btn btn-primary w-100">Update</button>
@@ -279,10 +757,12 @@
                         </form>
                     </div>
                 }
-            </div>
+
+            </div><!-- /.email-card -->
         }
         else
         {
+            <!-- Empty state -->
             <div class="email-card">
                 <div class="empty-state">
                     <div class="empty-icon"><i class="bi bi-envelope-x"></i></div>
@@ -295,14 +775,15 @@
             </div>
         }
     </div>
+
 </div>
 
 @section Scripts {
     <script>
         function syncFormFields(type) {
             if (type === 'update') {
-                document.getElementById('updateSubject').value = document.getElementById('subjectInput').value;
-                document.getElementById('updateBody').value = document.getElementById('bodyInput').value;
+                document.getElementById('updateSubject').value  = document.getElementById('subjectInput').value;
+                document.getElementById('updateBody').value     = document.getElementById('bodyInput').value;
                 document.getElementById('updateRecipient').value = document.getElementById('recipientEmail').value;
             }
         }

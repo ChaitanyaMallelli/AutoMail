@@ -1,22 +1,27 @@
 @{
-    Layout = null; // Do not use the main layout with headers/footers
+    Layout = null; // Standalone login — no sidebar or shared layout
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Authentication Required | Job Automation Bot</title>
+    <title>Sign In | JobFlow AI</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
-    <link rel="stylesheet" href="~/css/site.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    
+
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background: radial-gradient(circle at top right, rgb(20, 24, 45) 0%, rgb(8, 10, 18) 100%);
             min-height: 100vh;
+            background: #080a12;
             color: #f3f4f6;
             display: flex;
             align-items: center;
@@ -25,140 +30,387 @@
             position: relative;
         }
 
-        /* Neon circles behind the card */
-        .glow-circle-1 {
-            position: absolute;
-            width: 400px;
-            height: 400px;
-            background: rgba(99, 102, 241, 0.15);
-            filter: blur(120px);
+        /* ── Animated background blobs ── */
+        .bg-blob {
+            position: fixed;
             border-radius: 50%;
-            top: 15%;
-            left: 20%;
+            filter: blur(110px);
             pointer-events: none;
+            opacity: 0;
+            animation: blobFadeIn 1.4s ease forwards;
         }
-        
-        .glow-circle-2 {
-            position: absolute;
-            width: 300px;
-            height: 300px;
-            background: rgba(168, 85, 247, 0.12);
-            filter: blur(100px);
-            border-radius: 50%;
-            bottom: 15%;
-            right: 20%;
-            pointer-events: none;
+
+        .bg-blob-1 {
+            width: 520px;
+            height: 520px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, transparent 70%);
+            top: -80px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+
+        .bg-blob-2 {
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, transparent 70%);
+            bottom: -60px;
+            right: -80px;
+            animation-delay: 0.3s;
+        }
+
+        .bg-blob-3 {
+            width: 280px;
+            height: 280px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+            top: 50%;
+            left: 55%;
+            transform: translate(-50%, -50%);
+            animation-delay: 0.6s;
+        }
+
+        @@keyframes blobFadeIn {
+            to { opacity: 1; }
+        }
+
+        /* ── Card ── */
+        .login-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .login-card {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(20, 27, 45, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
             width: 100%;
-            max-width: 420px;
-            padding: 40px 30px;
-            position: relative;
-            z-index: 10;
+            max-width: 440px;
+            background: rgba(16, 22, 42, 0.72);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 24px;
+            padding: 44px 36px 36px;
+            box-shadow:
+                0 0 0 1px rgba(99, 102, 241, 0.08),
+                0 24px 60px rgba(0, 0, 0, 0.45);
+            animation: cardSlideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
 
-        .brand-logo {
-            font-family: 'Outfit', sans-serif;
-            font-weight: 800;
-            background: linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.2rem;
-            letter-spacing: -1px;
+        @@keyframes cardSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(28px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Brand mark ── */
+        .brand-icon-wrap {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(168,85,247,0.2) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            margin: 0 auto 16px;
+            box-shadow: 0 0 24px rgba(99, 102, 241, 0.2);
         }
 
-        .form-control-passcode {
-            background: rgba(15, 23, 42, 0.5) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        .brand-icon-wrap i {
+            font-size: 1.75rem;
+            background: linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-name {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.75rem;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #a78bfa 50%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .brand-subtitle {
+            font-size: 0.82rem;
+            color: #6b7280;
+            margin-top: 6px;
+            letter-spacing: 0.02em;
+        }
+
+        /* ── Divider ── */
+        .card-divider {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
+            margin: 24px 0;
+        }
+
+        /* ── Form labels & text ── */
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 4px;
+        }
+
+        .card-desc {
+            font-size: 0.8rem;
+            color: #6b7280;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .input-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #9ca3af;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        /* ── Passcode input ── */
+        .passcode-input-wrap {
+            position: relative;
+        }
+
+        .passcode-input {
+            width: 100%;
+            background: rgba(8, 12, 28, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.09) !important;
             color: #ffffff !important;
-            font-family: monospace;
-            font-size: 1.4rem;
-            letter-spacing: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            letter-spacing: 8px;
             text-align: center;
-            border-radius: 12px !important;
-            padding: 12px !important;
-            transition: all 0.3s ease !important;
+            border-radius: 14px !important;
+            padding: 14px 48px 14px 14px !important;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
+            outline: none;
         }
 
-        .form-control-passcode:focus {
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3) !important;
+        .passcode-input::placeholder {
+            letter-spacing: 4px;
+            color: rgba(255, 255, 255, 0.18);
+            font-size: 1.1rem;
         }
 
-        .btn-auth {
+        .passcode-input:focus {
+            border-color: rgba(99, 102, 241, 0.6) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15), 0 0 20px rgba(99, 102, 241, 0.12) !important;
+        }
+
+        /* toggle visibility icon */
+        .toggle-visibility {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #4b5563;
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        .toggle-visibility:hover {
+            color: #a78bfa;
+        }
+
+        /* ── Error alert ── */
+        .error-alert {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 10px;
+            color: #f87171;
+            font-size: 0.82rem;
+            padding: 10px 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: shakeIn 0.4s ease;
+        }
+
+        @@keyframes shakeIn {
+            0%   { transform: translateX(0); }
+            20%  { transform: translateX(-6px); }
+            40%  { transform: translateX(6px); }
+            60%  { transform: translateX(-4px); }
+            80%  { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        /* ── Sign In button ── */
+        .btn-glow {
+            width: 100%;
             background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             border: none;
-            color: white;
-            padding: 14px;
-            border-radius: 12px;
-            font-weight: 600;
+            color: #ffffff;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
             font-size: 1rem;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-            transition: all 0.3s ease;
+            padding: 14px;
+            border-radius: 14px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.2);
+            letter-spacing: 0.02em;
+            margin-top: 20px;
         }
 
-        .btn-auth:hover {
+        .btn-glow::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .btn-glow:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-            background: linear-gradient(135deg, #818cf8 0%, #4338ca 100%);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.3);
         }
 
-        .btn-auth:active {
+        .btn-glow:active {
             transform: translateY(0);
+            box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
         }
 
-        .text-accent-glow {
-            color: #a78bfa;
-            text-shadow: 0 0 8px rgba(167, 139, 250, 0.4);
+        /* ── Footer note ── */
+        .login-footer-note {
+            font-size: 0.72rem;
+            color: #374151;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .login-footer-note i {
+            font-size: 0.65rem;
+        }
+
+        /* ── Responsive ── */
+        @@media (max-width: 480px) {
+            .login-card {
+                padding: 32px 22px 28px;
+                border-radius: 18px;
+            }
+
+            .brand-name {
+                font-size: 1.5rem;
+            }
+
+            .passcode-input {
+                font-size: 1.2rem;
+                letter-spacing: 5px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="glow-circle-1"></div>
-    <div class="glow-circle-2"></div>
 
-    <div class="login-card text-center">
-        <!-- Logo -->
-        <div class="brand-logo mb-2">
-            <i class="bi bi-shield-lock-fill text-accent-glow"></i> RAZOR.AI
-        </div>
-        
-        <p class="text-muted text-sm mb-4">Personal Job Automation Dashboard</p>
+    <!-- Animated background blobs -->
+    <div class="bg-blob bg-blob-1"></div>
+    <div class="bg-blob bg-blob-2"></div>
+    <div class="bg-blob bg-blob-3"></div>
 
-        @if (ViewBag.Error != null)
-        {
-            <div class="alert alert-danger border-0 text-sm mb-4 py-2.5" style="background: rgba(239, 68, 68, 0.1); color: #f87171; border-radius: 10px;">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> @ViewBag.Error
+    <div class="login-wrapper">
+        <div class="login-card text-center">
+
+            <!-- Brand mark -->
+            <div class="brand-icon-wrap">
+                <i class="bi bi-briefcase-fill"></i>
             </div>
-        }
+            <div class="brand-name">JobFlow AI</div>
+            <p class="brand-subtitle">Your AI-powered job application assistant</p>
 
-        <form method="post" asp-controller="Login" asp-action="Submit">
-            <div class="mb-4">
-                <label class="form-label d-block text-muted text-start text-xs uppercase fw-bold mb-2" style="letter-spacing: 1px;">Enter Passcode</label>
-                <input type="password" name="passcode" class="form-control form-control-passcode" placeholder="••••••••••" required autocomplete="off" />
+            <hr class="card-divider" />
+
+            <!-- Card heading -->
+            <div class="card-title">Enter Passcode</div>
+            <p class="card-desc">
+                This is a personal dashboard. Enter your passcode to access your job application workspace.
+            </p>
+
+            <!-- Error state -->
+            @if (ViewBag.Error != null)
+            {
+                <div class="error-alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>@ViewBag.Error</span>
+                </div>
+            }
+
+            <!-- Login form — preserves original action + model binding -->
+            <form method="post" asp-controller="Login" asp-action="Submit">
+                <div class="text-start">
+                    <label class="input-label" for="passcode">Passcode</label>
+                </div>
+                <div class="passcode-input-wrap">
+                    <input
+                        id="passcode"
+                        type="password"
+                        name="passcode"
+                        class="passcode-input"
+                        placeholder="••••••••"
+                        required
+                        autocomplete="current-password"
+                        autofocus
+                    />
+                    <button type="button" class="toggle-visibility" onclick="togglePasscode(this)" aria-label="Toggle passcode visibility">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+
+                <button type="submit" class="btn-glow">
+                    <i class="bi bi-arrow-right-circle-fill me-2"></i>Sign In
+                </button>
+            </form>
+
+            <!-- Footer note -->
+            <div class="login-footer-note">
+                <i class="bi bi-shield-lock"></i>
+                Authorized access only. Activity is monitored.
             </div>
 
-            <button type="submit" class="btn btn-auth w-100 mb-3">
-                <i class="bi bi-unlock-fill me-1"></i> Unlock Dashboard
-            </button>
-        </form>
-
-        <div class="text-xs text-muted mt-4">
-            Authorized users only. System access is monitored.
         </div>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePasscode(btn) {
+            const input = document.getElementById('passcode');
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+    </script>
 </body>
 </html>

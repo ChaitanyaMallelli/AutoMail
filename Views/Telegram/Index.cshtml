@@ -1,7 +1,7 @@
 @{
     ViewData["Title"] = "Telegram Integration";
     ViewData["Subtitle"] = "Receive job posts and screenshots directly via Telegram";
-    
+
     var botToken = ViewBag.BotToken as string;
     var configuredWebhookUrl = ViewBag.ConfiguredWebhookUrl as string;
     var botInfo = ViewBag.BotInfo as Newtonsoft.Json.Linq.JObject;
@@ -9,70 +9,75 @@
 
     bool isBotConnected = botInfo != null && (bool?)botInfo["ok"] == true;
     bool isWebhookActive = webhookInfo != null && (bool?)webhookInfo["ok"] == true && !string.IsNullOrEmpty(webhookInfo["result"]?["url"]?.ToString());
-    
+
     string botUsername = botInfo?["result"]?["username"]?.ToString() ?? "";
     string botFirstName = botInfo?["result"]?["first_name"]?.ToString() ?? "";
-    
+
     string activeWebhookUrl = webhookInfo?["result"]?["url"]?.ToString() ?? "";
     int pendingUpdates = (int?)webhookInfo?["result"]?["pending_update_count"] ?? 0;
-    string lastErrorDate = webhookInfo?["result"]?["last_error_date"]?.ToString() ?? "";
     string lastErrorMessage = webhookInfo?["result"]?["last_error_message"]?.ToString() ?? "";
 }
 
 <div class="row g-4">
-    <!-- Webhook Control Panel -->
+
+    <!-- LEFT: Webhook Control Panel -->
     <div class="col-lg-7">
-        <!-- Bot Profile Status Card -->
+
+        <!-- Bot Status Card -->
         <div class="detail-card mb-4" style="position: relative; overflow: hidden;">
-            <div style="position: absolute; right: -20px; top: -20px; font-size: 120px; opacity: 0.05; color: var(--color-info); transform: rotate(15deg); pointer-events: none;">
+            <!-- Decorative Telegram watermark -->
+            <div style="position: absolute; right: -24px; top: -24px; font-size: 130px; opacity: 0.04; color: #24A1DE; transform: rotate(12deg); pointer-events: none; line-height: 1;">
                 <i class="bi bi-telegram"></i>
             </div>
-            
+
             <h5 class="detail-card-title mb-4">
-                <i class="bi bi-robot"></i> Telegram Bot Status
+                <i class="bi bi-robot"></i> Bot Status
             </h5>
 
             @if (isBotConnected)
             {
-                <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded" style="background: rgba(59, 130, 246, 0.06); border: 1px solid rgba(59, 130, 246, 0.15);">
-                    <div class="company-avatar" style="width: 48px; height: 48px; background: linear-gradient(135deg, #24A1DE, #1C82B6); font-size: 22px;">
+                <!-- Online indicator row -->
+                <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded-3" style="background: rgba(36, 161, 222, 0.07); border: 1px solid rgba(36, 161, 222, 0.18);">
+                    <div class="company-avatar flex-shrink-0" style="width: 52px; height: 52px; min-width: 52px; background: linear-gradient(135deg, #24A1DE, #1468A0); font-size: 24px; box-shadow: 0 0 18px rgba(36,161,222,0.35);">
                         <i class="bi bi-telegram"></i>
                     </div>
-                    <div>
-                        <div class="fw-bold text-white fs-5">@botFirstName</div>
-                        <div class="text-sm" style="color: var(--color-info);">
-                            <a href="https://t.me/@botUsername" target="_blank" class="text-decoration-none" style="color: inherit;">
-                                <i class="bi bi-link-45deg"></i> @("@" + botUsername)
-                            </a>
-                        </div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-bold text-white fs-6 mb-1">@botFirstName</div>
+                        <a href="https://t.me/@botUsername" target="_blank" class="text-decoration-none text-sm" style="color: #38bdf8;">
+                            <i class="bi bi-link-45deg"></i> @("@" + botUsername)
+                        </a>
                     </div>
-                    <div class="ms-auto">
+                    <div class="flex-shrink-0 d-flex flex-column align-items-end gap-1">
                         <span class="status-badge status-sent">
-                            <i class="bi bi-check-circle-fill"></i> Connected
+                            <i class="bi bi-circle-fill" style="font-size: 7px;"></i> Online
                         </span>
+                        <span class="text-xs" style="color: var(--color-text-muted);">Connected</span>
                     </div>
                 </div>
 
-                <div class="row g-3 text-sm mb-2">
+                <!-- Meta row -->
+                <div class="row g-3 text-sm">
                     <div class="col-sm-6">
-                        <span class="text-muted d-block">Bot Username</span>
-                        <span class="fw-medium text-white">@("@" + botUsername)</span>
+                        <span class="detail-label">Bot Username</span>
+                        <span class="detail-value" style="color: #38bdf8; font-weight: 600;">@("@" + botUsername)</span>
                     </div>
                     <div class="col-sm-6">
-                        <span class="text-muted d-block">Bot Token</span>
-                        <span class="fw-medium text-white" style="font-family: monospace;">
+                        <span class="detail-label">Bot Token</span>
+                        <code class="d-block mt-1" style="font-size: 12px; word-break: break-all;">
                             @(string.IsNullOrEmpty(botToken) ? "Not configured" : botToken.Substring(0, Math.Min(botToken.Length, 10)) + "..." + botToken.Substring(Math.Max(0, botToken.Length - 5)))
-                        </span>
+                        </code>
                     </div>
                 </div>
             }
             else
             {
-                <div class="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+                <div class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: var(--color-danger-bg); border: 1px solid var(--color-danger-border);">
                     <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0" style="color: var(--color-danger);"></i>
                     <div>
-                        <h6 class="alert-heading fw-bold mb-1">Bot Not Connected</h6>
-                        <p class="mb-0 text-sm opacity-90">Could not fetch bot details from Telegram. Please check that your <strong>BotToken</strong> is configured correctly in <code>appsettings.json</code>.</p>
+                        <div class="fw-bold text-white mb-1">Bot Not Connected</div>
+                        <p class="mb-0 text-sm" style="color: var(--color-text-secondary);">
+                            Could not reach the Telegram API. Verify your <strong>BotToken</strong> in <code>appsettings.json</code>.
+                        </p>
                     </div>
                 </div>
             }
@@ -84,60 +89,61 @@
                 <i class="bi bi-hdd-network"></i> Webhook Configuration
             </h5>
 
+            <!-- Current webhook status -->
             @if (isWebhookActive)
             {
-                <div class="mb-4 p-3 rounded" style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
+                <div class="mb-4 p-3 rounded-3" style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.16);">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-white">Active Webhook URL</span>
+                        <span class="fw-semibold text-white text-sm">Active Webhook URL</span>
                         <span class="status-badge status-sent">
-                            <i class="bi bi-check-circle-fill"></i> Active
+                            <i class="bi bi-check-circle-fill" style="font-size: 9px;"></i> Active
                         </span>
                     </div>
-                    <code class="d-block p-2 rounded text-break bg-dark text-success text-sm mb-3" style="border: 1px solid var(--color-border);">@activeWebhookUrl</code>
-                    
-                    <div class="row g-3 text-sm">
-                        <div class="col-sm-6">
-                            <span class="text-muted d-block">Pending Updates</span>
-                            <span class="fw-bold text-white fs-6">@pendingUpdates</span>
+                    <code class="d-block p-2 rounded text-break text-sm mb-3" style="background: rgba(0,0,0,0.25); border: 1px solid var(--color-border); color: var(--color-success-light); word-break: break-all;">@activeWebhookUrl</code>
+                    <div class="d-flex gap-4 text-sm">
+                        <div>
+                            <span class="detail-label">Pending Updates</span>
+                            <span class="fw-bold text-white">@pendingUpdates</span>
                         </div>
-                        @if (!string.IsNullOrEmpty(lastErrorMessage))
-                        {
-                            <div class="col-12 mt-3">
-                                <span class="text-danger fw-bold d-block mb-1">
-                                    <i class="bi bi-exclamation-circle-fill"></i> Last Error
-                                </span>
-                                <div class="p-2 rounded bg-danger-subtle text-danger-emphasis text-sm">
-                                    @lastErrorMessage
-                                </div>
-                            </div>
-                        }
                     </div>
+                    @if (!string.IsNullOrEmpty(lastErrorMessage))
+                    {
+                        <div class="mt-3 p-2 rounded" style="background: var(--color-danger-bg); border: 1px solid var(--color-danger-border);">
+                            <span class="text-sm" style="color: var(--color-danger-light);">
+                                <i class="bi bi-exclamation-circle-fill me-1"></i>@lastErrorMessage
+                            </span>
+                        </div>
+                    }
                 </div>
             }
             else
             {
-                <div class="mb-4 p-3 rounded" style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.15);">
+                <div class="mb-4 p-3 rounded-3" style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.16);">
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-white">Webhook Status</span>
+                        <span class="fw-semibold text-white text-sm">Webhook Status</span>
                         <span class="status-badge status-pending">
-                            <i class="bi bi-exclamation-circle"></i> Inactive / None Registered
+                            <i class="bi bi-exclamation-circle" style="font-size: 9px;"></i> Inactive
                         </span>
                     </div>
-                    <p class="text-muted text-sm mt-2 mb-0">Telegram will not send job updates to this application until a secure, public HTTPS webhook URL is registered.</p>
+                    <p class="mb-0 text-sm mt-2" style="color: var(--color-text-muted);">
+                        Telegram won't deliver job updates until a secure HTTPS webhook is registered.
+                    </p>
                 </div>
             }
 
-            <form method="post" asp-action="Register" class="mt-4">
+            <!-- Register form -->
+            <form method="post" asp-action="Register" class="mt-3">
                 <div class="mb-3">
-                    <label class="form-label text-white fw-bold">Set Webhook URL</label>
+                    <label class="form-label">Set Webhook URL</label>
                     <div class="input-group">
-                        <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-shield-lock-fill"></i></span>
-                        <input type="url" name="webhookUrl" class="form-control bg-dark border-secondary text-white" 
-                               placeholder="https://xxxx.ngrok-free.app" 
-                               value="@(string.IsNullOrEmpty(configuredWebhookUrl) || configuredWebhookUrl.Contains("your-domain.com") ? "" : configuredWebhookUrl)" required />
+                        <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
+                        <input type="url" name="webhookUrl" class="form-control"
+                               placeholder="https://xxxx.ngrok-free.app"
+                               value="@(string.IsNullOrEmpty(configuredWebhookUrl) || configuredWebhookUrl.Contains("your-domain.com") ? "" : configuredWebhookUrl)"
+                               required />
                     </div>
-                    <div class="form-text text-muted">
-                        Enter your public HTTPS URL (e.g. from ngrok). We will append <code>/api/telegram/webhook</code> automatically.
+                    <div class="form-text">
+                        Enter your public HTTPS base URL. We will append <code>/api/telegram/webhook</code> automatically.
                     </div>
                 </div>
 
@@ -147,47 +153,74 @@
                     </button>
                     @if (isWebhookActive)
                     {
-                        <button type="submit" form="deleteForm" class="btn btn-outline-danger px-3" title="Unregister Webhook">
-                            <i class="bi bi-trash-fill"></i> Unregister
+                        <button type="submit" form="deleteForm" class="btn btn-outline-danger px-3" title="Remove Webhook">
+                            <i class="bi bi-trash-fill"></i>
                         </button>
                     }
                 </div>
             </form>
 
             <form id="deleteForm" method="post" asp-action="Delete" style="display:none;"></form>
+
+            <!-- Live Activity link -->
+            <div class="mt-4 pt-3 border-top border-secondary d-flex align-items-center justify-content-between">
+                <span class="text-sm" style="color: var(--color-text-muted);">
+                    <i class="bi bi-activity me-1" style="color: var(--color-accent-light);"></i>
+                    Monitor the automation pipeline in real time
+                </span>
+                <a href="@Url.Action("Progress", "Telegram")" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-broadcast me-1"></i> Live Activity
+                </a>
+            </div>
         </div>
+
     </div>
 
-    <!-- Step-by-Step Setup Guide -->
-    <div class="col-lg-5">
-        <div class="detail-card h-100">
+    <!-- RIGHT: Instructions + Commands -->
+    <div class="col-lg-5 d-flex flex-column gap-4">
+
+        <!-- Setup Guide -->
+        <div class="detail-card flex-grow-0">
             <h5 class="detail-card-title mb-4">
-                <i class="bi bi-info-circle"></i> Step-by-Step Setup Guide
+                <i class="bi bi-list-ol"></i> Setup Guide
             </h5>
 
-            <div class="setup-steps">
+            <div class="d-flex flex-column gap-4">
+
                 <!-- Step 1 -->
-                <div class="d-flex gap-3 mb-4">
-                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                <div class="d-flex gap-3">
+                    <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle fw-bold text-white"
+                         style="width: 30px; height: 30px; min-width: 30px; background: var(--color-accent-gradient); font-size: 13px; box-shadow: var(--shadow-glow-sm);">
                         1
                     </div>
                     <div>
-                        <h6 class="fw-bold text-white mb-1">Create your Telegram Bot</h6>
-                        <p class="text-muted text-sm mb-0">Open <a href="https://t.me/BotFather" target="_blank" class="text-accent-light">@("@BotFather")</a> in Telegram and type <code>/newbot</code>. Follow the prompts to get your bot's **BotToken**.</p>
+                        <div class="fw-semibold text-white mb-1" style="font-size: 14px;">
+                            <i class="bi bi-robot me-1" style="color: var(--color-accent-light);"></i> Create a Telegram Bot
+                        </div>
+                        <p class="text-sm mb-0" style="color: var(--color-text-muted); line-height: 1.6;">
+                            Open <a href="https://t.me/BotFather" target="_blank" style="color: #38bdf8;">@("@BotFather")</a> in Telegram, type <code>/newbot</code> and follow the prompts to receive your <strong>BotToken</strong>.
+                        </p>
                     </div>
                 </div>
 
                 <!-- Step 2 -->
-                <div class="d-flex gap-3 mb-4">
-                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                <div class="d-flex gap-3">
+                    <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle fw-bold text-white"
+                         style="width: 30px; height: 30px; min-width: 30px; background: var(--color-accent-gradient); font-size: 13px; box-shadow: var(--shadow-glow-sm);">
                         2
                     </div>
                     <div>
-                        <h6 class="fw-bold text-white mb-1">Start Local Tunneling (ngrok)</h6>
-                        <p class="text-muted text-sm mb-2">Since the app runs locally, Telegram needs a public URL. Run this command in a separate terminal to open a tunnel:</p>
-                        <div class="bg-dark p-2 rounded border border-secondary position-relative">
-                            <code class="text-accent-light text-sm" id="ngrokCmd">ngrok http http://localhost:5128</code>
-                            <button onclick="copyNgrokCommand()" class="btn btn-sm btn-link text-muted position-absolute end-0 top-0 mt-1 me-1 text-decoration-none" title="Copy to clipboard">
+                        <div class="fw-semibold text-white mb-1" style="font-size: 14px;">
+                            <i class="bi bi-terminal me-1" style="color: var(--color-accent-light);"></i> Start Local Tunnel (ngrok)
+                        </div>
+                        <p class="text-sm mb-2" style="color: var(--color-text-muted); line-height: 1.6;">
+                            Telegram needs a public URL. In a separate terminal, run:
+                        </p>
+                        <div class="position-relative p-2 rounded" style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border);">
+                            <code class="text-sm" id="ngrokCmd" style="color: var(--color-accent-light);">ngrok http http://localhost:5128</code>
+                            <button onclick="copyNgrokCommand()" type="button"
+                                    class="btn btn-sm btn-link position-absolute end-0 top-0 mt-1 me-1 text-decoration-none"
+                                    style="color: var(--color-text-muted);" title="Copy command">
                                 <i class="bi bi-copy"></i>
                             </button>
                         </div>
@@ -195,28 +228,78 @@
                 </div>
 
                 <!-- Step 3 -->
-                <div class="d-flex gap-3 mb-4">
-                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                <div class="d-flex gap-3">
+                    <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle fw-bold text-white"
+                         style="width: 30px; height: 30px; min-width: 30px; background: var(--color-accent-gradient); font-size: 13px; box-shadow: var(--shadow-glow-sm);">
                         3
                     </div>
                     <div>
-                        <h6 class="fw-bold text-white mb-1">Register the Webhook</h6>
-                        <p class="text-muted text-sm mb-0">Copy the **https** URL from the ngrok output (e.g. <code>https://3bf2-111-222-33-44.ngrok-free.app</code>), paste it into the "Set Webhook URL" box on the left, and click **Register Webhook**.</p>
+                        <div class="fw-semibold text-white mb-1" style="font-size: 14px;">
+                            <i class="bi bi-cloud-arrow-up me-1" style="color: var(--color-accent-light);"></i> Register the Webhook
+                        </div>
+                        <p class="text-sm mb-0" style="color: var(--color-text-muted); line-height: 1.6;">
+                            Copy the <code>https://</code> URL from ngrok output and paste it into the <em>Set Webhook URL</em> box. Click <strong>Register Webhook</strong>.
+                        </p>
                     </div>
                 </div>
 
                 <!-- Step 4 -->
                 <div class="d-flex gap-3">
-                    <div class="setup-step-number bg-primary text-white d-flex align-items-center justify-content-center rounded-circle flex-shrink-0" style="width: 28px; height: 28px; font-weight: 700;">
+                    <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle fw-bold text-white"
+                         style="width: 30px; height: 30px; min-width: 30px; background: linear-gradient(135deg, #22c55e, #10b981); font-size: 13px; box-shadow: 0 0 12px rgba(34,197,94,0.30);">
                         4
                     </div>
                     <div>
-                        <h6 class="fw-bold text-white mb-1">Test the Automation!</h6>
-                        <p class="text-muted text-sm mb-0">Open your Telegram bot chat, click **Start**, and send either a **text job post**, **LinkedIn hiring screenshot**, or **PDF job description**. Check your JobFlow dashboard to see the magic happen!</p>
+                        <div class="fw-semibold text-white mb-1" style="font-size: 14px;">
+                            <i class="bi bi-send-check me-1" style="color: var(--color-success-light);"></i> Send a Job &amp; Watch the Magic
+                        </div>
+                        <p class="text-sm mb-0" style="color: var(--color-text-muted); line-height: 1.6;">
+                            Open your bot chat, click <strong>Start</strong>, then send a text job post, LinkedIn screenshot, or PDF. The pipeline will track it live.
+                        </p>
                     </div>
                 </div>
+
             </div>
         </div>
+
+        <!-- Quick Commands Card -->
+        <div class="detail-card flex-grow-0">
+            <h5 class="detail-card-title mb-3">
+                <i class="bi bi-terminal-fill"></i> Bot Commands
+            </h5>
+            <div class="d-flex flex-column gap-2">
+
+                <div class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.12);">
+                    <code style="color: var(--color-accent-light); flex-shrink: 0; font-size: 13px; margin-top: 1px;">/start</code>
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        Initialise the bot, register your Telegram chat ID, and receive a welcome message.
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.12);">
+                    <code style="color: var(--color-accent-light); flex-shrink: 0; font-size: 13px; margin-top: 1px;">/help</code>
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        Display a summary of all available commands and how to send a job post.
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.14);">
+                    <code style="color: #c084fc; flex-shrink: 0; font-size: 13px; margin-top: 1px;">/mockinterview</code>
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        Start an AI-driven mock interview session tailored to your resume and target role.
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-start gap-3 p-3 rounded-3" style="background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.12);">
+                    <code style="color: var(--color-danger-light); flex-shrink: 0; font-size: 13px; margin-top: 1px;">/stopinterview</code>
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        End the current mock interview session and return to job application mode.
+                    </span>
+                </div>
+
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -225,7 +308,9 @@
         function copyNgrokCommand() {
             const cmd = document.getElementById("ngrokCmd").innerText;
             navigator.clipboard.writeText(cmd).then(() => {
-                alert("ngrok command copied to clipboard!");
+                const btn = event.currentTarget;
+                btn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                setTimeout(() => { btn.innerHTML = '<i class="bi bi-copy"></i>'; }, 1800);
             });
         }
     </script>

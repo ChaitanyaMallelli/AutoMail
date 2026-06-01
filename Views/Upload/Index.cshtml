@@ -1,220 +1,775 @@
 @{
-    ViewData["Title"] = "Upload Job Post";
-    ViewData["Subtitle"] = "Upload a screenshot, PDF, or paste text to extract job details";
+    ViewData["Title"] = "Submit New Job";
+    ViewData["Subtitle"] = "Paste text, drop a file, or share a URL — AI extracts everything in seconds";
 }
 
-<div class="upload-container">
+<style>
+    /* ── Tab nav pill style ── */
+    .submit-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 28px;
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: 6px;
+        flex-wrap: wrap;
+    }
+
+    .submit-tabs .nav-link {
+        flex: 1;
+        min-width: 110px;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--color-text-secondary);
+        border-radius: var(--radius-md);
+        padding: 10px 14px;
+        font-size: 13.5px;
+        font-weight: 600;
+        transition: all 0.18s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        white-space: nowrap;
+        text-align: center;
+    }
+
+    .submit-tabs .nav-link:hover {
+        color: var(--color-text-primary);
+        background: rgba(99, 102, 241, 0.08);
+        border-color: rgba(99, 102, 241, 0.20);
+    }
+
+    .submit-tabs .nav-link.active {
+        background: var(--color-accent-gradient);
+        border-color: transparent;
+        color: #ffffff;
+        box-shadow: var(--shadow-glow-sm);
+    }
+
+    /* ── Tab content card wrapper ── */
+    .tab-form-card {
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: 32px;
+        animation: fadeIn 0.22s ease both;
+    }
+
+    /* ── URL input group override ── */
+    .url-input-group {
+        position: relative;
+    }
+
+    .url-input-group .input-group-text {
+        border-right: none !important;
+        padding-right: 12px;
+        padding-left: 14px;
+    }
+
+    .url-input-group .form-control {
+        border-left: 1px solid var(--color-border-medium) !important;
+        padding-left: 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* ── Upload zone refreshed ── */
+    .drop-zone {
+        background: rgba(13, 21, 38, 0.55);
+        border: 2px dashed rgba(148, 163, 184, 0.18);
+        border-radius: var(--radius-xl);
+        padding: 56px 32px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.20s ease;
+        position: relative;
+        overflow: hidden;
+        user-select: none;
+    }
+
+    .drop-zone::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at center, rgba(99,102,241,0.18) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.20s ease;
+        pointer-events: none;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+        border-color: var(--color-accent);
+        background: rgba(19, 28, 53, 0.85);
+    }
+
+    .drop-zone:hover::after,
+    .drop-zone.drag-over::after {
+        opacity: 1;
+    }
+
+    .drop-zone.drag-over {
+        box-shadow: inset 0 0 36px rgba(99,102,241,0.22);
+    }
+
+    .drop-zone-icon {
+        font-size: 48px;
+        color: var(--color-accent-light);
+        opacity: 0.65;
+        display: block;
+        margin-bottom: 16px;
+        transition: opacity 0.20s ease, transform 0.20s ease;
+        position: relative;
+        z-index: 1;
+    }
+
+    .drop-zone:hover .drop-zone-icon {
+        opacity: 1;
+        transform: translateY(-4px);
+    }
+
+    .drop-zone-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        margin-bottom: 6px;
+        letter-spacing: -0.3px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .drop-zone-sub {
+        font-size: 13.5px;
+        color: var(--color-text-secondary);
+        margin-bottom: 0;
+        position: relative;
+        z-index: 1;
+    }
+
+    .drop-zone-browse {
+        color: var(--color-accent-light);
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        transition: color 0.15s;
+    }
+    .drop-zone-browse:hover { color: #c7d2fe; }
+
+    /* ── Format chips ── */
+    .format-chips {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 20px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .format-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 11px;
+        color: var(--color-text-muted);
+        border: 1px solid var(--color-border);
+        font-weight: 500;
+        letter-spacing: 0.3px;
+    }
+
+    /* ── File selected preview ── */
+    .file-chosen-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        background: var(--color-success-bg);
+        border: 1px solid var(--color-success-border);
+        border-radius: var(--radius-md);
+        margin-top: 16px;
+        flex-wrap: wrap;
+    }
+
+    .file-chosen-icon {
+        font-size: 28px;
+        color: var(--color-success-light);
+        flex-shrink: 0;
+    }
+
+    .file-chosen-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .file-chosen-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--color-text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .file-chosen-size {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        margin-top: 1px;
+    }
+
+    /* ── Character counter ── */
+    .char-counter {
+        text-align: right;
+        font-size: 11px;
+        color: var(--color-text-muted);
+        margin-top: 6px;
+        letter-spacing: 0.2px;
+    }
+
+    /* ── Submit row ── */
+    .form-submit-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 24px;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .form-submit-hint {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* ── How it works ── */
+    .how-it-works-section {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .how-it-works-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+    }
+
+    .how-it-works-title i { color: var(--color-warning); font-size: 15px; }
+
+    .steps-row {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .step-item {
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: 20px 18px;
+        text-align: center;
+        flex: 1;
+        min-width: 148px;
+        position: relative;
+        transition: all 0.18s ease;
+    }
+
+    .step-item:hover {
+        border-color: var(--color-accent);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .step-num {
+        position: absolute;
+        top: -9px;
+        left: 14px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--color-accent-gradient);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-glow-sm);
+    }
+
+    .step-ico {
+        font-size: 26px;
+        color: var(--color-accent-light);
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    .step-item h6 {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        margin-bottom: 6px;
+    }
+
+    .step-item p {
+        font-size: 11.5px;
+        color: var(--color-text-muted);
+        margin: 0;
+        line-height: 1.55;
+    }
+
+    .step-sep {
+        font-size: 16px;
+        color: var(--color-text-muted);
+        opacity: 0.4;
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    /* ── Processing overlay ── */
+    .processing-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 15, 30, 0.80);
+        backdrop-filter: blur(6px);
+        z-index: 9999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .processing-overlay.show {
+        display: flex;
+    }
+
+    .processing-spinner {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 3px solid rgba(99,102,241,0.18);
+        border-top-color: var(--color-accent);
+        animation: spin 0.8s linear infinite;
+    }
+
+    .processing-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        letter-spacing: -0.2px;
+    }
+
+    .processing-subtext {
+        font-size: 13px;
+        color: var(--color-text-muted);
+        margin-top: -12px;
+    }
+
+    /* ── Mobile tweaks ── */
+    @@media (max-width: 575.98px) {
+        .tab-form-card { padding: 20px 16px; }
+        .drop-zone { padding: 40px 16px; }
+        .submit-tabs .nav-link { min-width: unset; padding: 9px 10px; font-size: 12.5px; }
+        .form-submit-row { flex-direction: column; align-items: stretch; }
+        .form-submit-row .btn-glow { justify-content: center; }
+        .step-sep { display: none; }
+    }
+</style>
+
+<!-- Processing overlay -->
+<div class="processing-overlay" id="processingOverlay">
+    <div class="processing-spinner"></div>
+    <div class="processing-text" id="processingText">Processing with AI...</div>
+    <div class="processing-subtext">Extracting job details, please wait</div>
+</div>
+
+<div style="max-width: 800px; margin: 0 auto;">
+
     <!-- Tab Navigation -->
-    <ul class="nav nav-pills upload-tabs" id="uploadTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="file-tab" data-bs-toggle="pill" data-bs-target="#fileUpload" type="button" role="tab">
-                <i class="bi bi-image me-2"></i> Screenshot / PDF
+    <ul class="nav submit-tabs" id="submitTabs" role="tablist">
+        <li class="nav-item" role="presentation" style="flex:1;">
+            <button class="nav-link active" id="tab-text" data-bs-toggle="pill"
+                    data-bs-target="#pane-text" type="button" role="tab"
+                    aria-controls="pane-text" aria-selected="true">
+                <i class="bi bi-card-text"></i>
+                <span>Text</span>
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="text-tab" data-bs-toggle="pill" data-bs-target="#textUpload" type="button" role="tab">
-                <i class="bi bi-card-text me-2"></i> Paste Text
+        <li class="nav-item" role="presentation" style="flex:1;">
+            <button class="nav-link" id="tab-url" data-bs-toggle="pill"
+                    data-bs-target="#pane-url" type="button" role="tab"
+                    aria-controls="pane-url" aria-selected="false">
+                <i class="bi bi-link-45deg"></i>
+                <span>URL</span>
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="url-tab" data-bs-toggle="pill" data-bs-target="#urlUpload" type="button" role="tab">
-                <i class="bi bi-link-45deg me-2"></i> Paste URL
+        <li class="nav-item" role="presentation" style="flex:1;">
+            <button class="nav-link" id="tab-image" data-bs-toggle="pill"
+                    data-bs-target="#pane-image" type="button" role="tab"
+                    aria-controls="pane-image" aria-selected="false">
+                <i class="bi bi-image"></i>
+                <span>Image</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" style="flex:1;">
+            <button class="nav-link" id="tab-pdf" data-bs-toggle="pill"
+                    data-bs-target="#pane-pdf" type="button" role="tab"
+                    aria-controls="pane-pdf" aria-selected="false">
+                <i class="bi bi-file-pdf"></i>
+                <span>PDF</span>
             </button>
         </li>
     </ul>
 
-    <div class="tab-content" id="uploadTabContent">
-        <!-- File Upload Tab -->
-        <div class="tab-pane fade show active" id="fileUpload" role="tabpanel">
-            <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="fileForm">
-                <div class="upload-zone" id="dropZone">
-                    <input type="file" name="file" id="fileInput" accept="image/*,.pdf" class="d-none" />
-                    <div class="upload-zone-content" id="uploadContent">
-                        <div class="upload-icon-wrapper">
-                            <i class="bi bi-cloud-arrow-up"></i>
+    <!-- Tab Panes -->
+    <div class="tab-content" id="submitTabContent">
+
+        <!-- ── Text Tab ── -->
+        <div class="tab-pane fade show active" id="pane-text" role="tabpanel" aria-labelledby="tab-text">
+            <div class="tab-form-card">
+                <div class="mb-3">
+                    <label class="form-label">
+                        <i class="bi bi-clipboard-fill me-1 text-accent-light"></i>
+                        Job Description Text
+                    </label>
+                    <form method="post" asp-action="ProcessText" id="form-text">
+                        <textarea name="jobText"
+                                  class="form-control text-area-large"
+                                  id="jobTextarea"
+                                  placeholder="Paste the full job posting text here...&#10;&#10;Include company name, role title, required skills, experience level, location and any contact email you can find."
+                                  rows="13"
+                                  required></textarea>
+                        <div class="char-counter"><span id="charCount">0</span> characters</div>
+                        <div class="form-submit-row">
+                            <div class="form-submit-hint">
+                                <i class="bi bi-robot"></i>
+                                Gemini AI will extract all job details
+                            </div>
+                            <button type="submit" class="btn btn-glow btn-lg" id="btn-text">
+                                <i class="bi bi-magic me-1"></i> Process with AI
+                            </button>
                         </div>
-                        <h4>Drop your file here</h4>
-                        <p>or <span class="upload-browse" onclick="document.getElementById('fileInput').click()">browse</span> to choose</p>
-                        <div class="upload-formats">
-                            <span class="format-badge"><i class="bi bi-file-image"></i> PNG</span>
-                            <span class="format-badge"><i class="bi bi-file-image"></i> JPG</span>
-                            <span class="format-badge"><i class="bi bi-file-image"></i> WEBP</span>
-                            <span class="format-badge"><i class="bi bi-file-pdf"></i> PDF</span>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── URL Tab ── -->
+        <div class="tab-pane fade" id="pane-url" role="tabpanel" aria-labelledby="tab-url">
+            <div class="tab-form-card">
+                <label class="form-label mb-3">
+                    <i class="bi bi-link-45deg me-1 text-accent-light"></i>
+                    Job Posting URL
+                </label>
+                <form method="post" asp-action="ProcessUrl" id="form-url">
+                    <div class="input-group input-group-lg url-input-group mb-2">
+                        <span class="input-group-text">
+                            <i class="bi bi-globe2" style="color:var(--color-text-muted);"></i>
+                        </span>
+                        <input type="url"
+                               name="jobUrl"
+                               class="form-control"
+                               placeholder="https://www.linkedin.com/jobs/view/..."
+                               required
+                               autocomplete="off" />
+                    </div>
+
+                    <p class="text-muted small mb-0 px-1">
+                        Supports LinkedIn, Indeed, Glassdoor, Naukri, company career pages and most public job boards.
+                    </p>
+
+                    <div class="form-submit-row">
+                        <div class="form-submit-hint">
+                            <i class="bi bi-cloud-download"></i>
+                            Page content is fetched and parsed automatically
+                        </div>
+                        <button type="submit" class="btn btn-glow btn-lg" id="btn-url">
+                            <i class="bi bi-magic me-1"></i> Extract from URL
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ── Image Tab ── -->
+        <div class="tab-pane fade" id="pane-image" role="tabpanel" aria-labelledby="tab-image">
+            <div class="tab-form-card">
+                <label class="form-label mb-3">
+                    <i class="bi bi-image me-1 text-accent-light"></i>
+                    Upload Screenshot
+                </label>
+                <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="form-image">
+                    <input type="file" name="file" id="imageFileInput" accept="image/*" class="d-none" />
+
+                    <div class="drop-zone" id="imageDropZone" onclick="document.getElementById('imageFileInput').click()">
+                        <i class="bi bi-image drop-zone-icon" id="imageDropIcon"></i>
+                        <div class="drop-zone-title">Drop your screenshot here</div>
+                        <p class="drop-zone-sub">or <span class="drop-zone-browse" onclick="event.stopPropagation(); document.getElementById('imageFileInput').click()">browse</span> to choose a file</p>
+                        <div class="format-chips">
+                            <span class="format-chip"><i class="bi bi-file-image"></i> PNG</span>
+                            <span class="format-chip"><i class="bi bi-file-image"></i> JPG</span>
+                            <span class="format-chip"><i class="bi bi-file-image"></i> WEBP</span>
+                            <span class="format-chip"><i class="bi bi-file-image"></i> GIF</span>
                         </div>
                     </div>
-                    <div class="upload-preview d-none" id="filePreview">
-                        <i class="bi bi-file-earmark-check preview-icon"></i>
-                        <span class="preview-name" id="fileName"></span>
-                        <span class="preview-size" id="fileSize"></span>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
+
+                    <div class="file-chosen-banner d-none" id="imageChosen">
+                        <i class="bi bi-file-earmark-image file-chosen-icon"></i>
+                        <div class="file-chosen-info">
+                            <div class="file-chosen-name" id="imageFileName"></div>
+                            <div class="file-chosen-size" id="imageFileSize"></div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearImageFile()">
                             <i class="bi bi-x-lg"></i> Remove
                         </button>
                     </div>
-                </div>
 
-                <div class="upload-submit d-none" id="fileSubmitSection">
-                    <button type="submit" class="btn btn-glow btn-lg" id="processFileBtn">
-                        <i class="bi bi-magic me-2"></i> Process with AI
-                    </button>
-                </div>
-            </form>
+                    <div class="form-submit-row">
+                        <div class="form-submit-hint">
+                            <i class="bi bi-eye"></i>
+                            AI reads text directly from your screenshot
+                        </div>
+                        <button type="submit" class="btn btn-glow btn-lg d-none" id="btn-image">
+                            <i class="bi bi-magic me-1"></i> Process with AI
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
 
-        <!-- Text Upload Tab -->
-        <div class="tab-pane fade" id="textUpload" role="tabpanel">
-            <form method="post" asp-action="ProcessText">
-                <div class="text-upload-card">
-                    <div class="text-input-wrapper">
-                        <textarea name="jobText" class="form-control text-area-large" id="jobTextInput"
-                                  placeholder="Paste the job posting text here...&#10;&#10;Example:&#10;Company: Acme Corp&#10;Role: Software Engineer&#10;Location: Remote&#10;Skills: C#, ASP.NET Core, SQL Server&#10;Experience: 3-5 years&#10;Email: hr@acmecorp.com"
-                                  rows="12"></textarea>
-                        <div class="text-counter">
-                            <span id="charCount">0</span> characters
+        <!-- ── PDF Tab ── -->
+        <div class="tab-pane fade" id="pane-pdf" role="tabpanel" aria-labelledby="tab-pdf">
+            <div class="tab-form-card">
+                <label class="form-label mb-3">
+                    <i class="bi bi-file-pdf me-1 text-accent-light"></i>
+                    Upload PDF
+                </label>
+                <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="form-pdf">
+                    <input type="file" name="file" id="pdfFileInput" accept=".pdf" class="d-none" />
+
+                    <div class="drop-zone" id="pdfDropZone" onclick="document.getElementById('pdfFileInput').click()">
+                        <i class="bi bi-file-pdf drop-zone-icon" id="pdfDropIcon"></i>
+                        <div class="drop-zone-title">Drop your PDF here</div>
+                        <p class="drop-zone-sub">or <span class="drop-zone-browse" onclick="event.stopPropagation(); document.getElementById('pdfFileInput').click()">browse</span> to choose a file</p>
+                        <div class="format-chips">
+                            <span class="format-chip"><i class="bi bi-file-pdf"></i> PDF</span>
+                            <span class="format-chip">Max 10 MB</span>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-glow btn-lg mt-3" id="processTextBtn">
-                        <i class="bi bi-magic me-2"></i> Process with AI
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- URL Upload Tab -->
-        <div class="tab-pane fade" id="urlUpload" role="tabpanel">
-            <form method="post" asp-action="ProcessUrl">
-                <div class="text-upload-card">
-                    <div class="text-input-wrapper">
-                        <div class="input-group input-group-lg mb-3 mt-4">
-                            <span class="input-group-text bg-transparent text-muted"><i class="bi bi-link-45deg"></i></span>
-                            <input type="url" name="jobUrl" class="form-control" placeholder="https://www.linkedin.com/jobs/view/..." required>
+                    <div class="file-chosen-banner d-none" id="pdfChosen">
+                        <i class="bi bi-file-earmark-pdf file-chosen-icon"></i>
+                        <div class="file-chosen-info">
+                            <div class="file-chosen-name" id="pdfFileName"></div>
+                            <div class="file-chosen-size" id="pdfFileSize"></div>
                         </div>
-                        <p class="text-muted small px-2">Paste a link to a job posting from LinkedIn, Indeed, Glassdoor, or any company careers page.</p>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearPdfFile()">
+                            <i class="bi bi-x-lg"></i> Remove
+                        </button>
                     </div>
 
-                    <button type="submit" class="btn btn-glow btn-lg mt-3" id="processUrlBtn">
-                        <i class="bi bi-magic me-2"></i> Extract from URL
-                    </button>
-                </div>
-            </form>
+                    <div class="form-submit-row">
+                        <div class="form-submit-hint">
+                            <i class="bi bi-file-text"></i>
+                            PDF is parsed and text extracted automatically
+                        </div>
+                        <button type="submit" class="btn btn-glow btn-lg d-none" id="btn-pdf">
+                            <i class="bi bi-magic me-1"></i> Process with AI
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
-</div>
 
-<!-- How it works -->
-<div class="how-it-works">
-    <h5 class="section-title"><i class="bi bi-lightning-charge-fill"></i> How It Works</h5>
-    <div class="steps-grid">
-        <div class="step-card">
-            <div class="step-number">1</div>
-            <div class="step-icon"><i class="bi bi-cloud-arrow-up"></i></div>
-            <h6>Upload</h6>
-            <p>Upload a screenshot, PDF, or paste job post text</p>
+    </div><!-- /tab-content -->
+
+    <!-- How it works -->
+    <div class="how-it-works-section">
+        <div class="how-it-works-title">
+            <i class="bi bi-lightning-charge-fill"></i>
+            How it works
         </div>
-        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
-        <div class="step-card">
-            <div class="step-number">2</div>
-            <div class="step-icon"><i class="bi bi-robot"></i></div>
-            <h6>AI Extracts</h6>
-            <p>Gemini AI reads and extracts company, role, skills</p>
-        </div>
-        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
-        <div class="step-card">
-            <div class="step-number">3</div>
-            <div class="step-icon"><i class="bi bi-envelope-paper"></i></div>
-            <h6>Email Generated</h6>
-            <p>Professional email drafted with your real skills</p>
-        </div>
-        <div class="step-arrow"><i class="bi bi-arrow-right"></i></div>
-        <div class="step-card">
-            <div class="step-number">4</div>
-            <div class="step-icon"><i class="bi bi-send-check"></i></div>
-            <h6>Review & Send</h6>
-            <p>Edit, approve, and send via Gmail</p>
+        <div class="steps-row">
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <i class="bi bi-cloud-arrow-up step-ico"></i>
+                <h6>Submit</h6>
+                <p>Paste text, upload a file or share a URL</p>
+            </div>
+            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <i class="bi bi-robot step-ico"></i>
+                <h6>AI Extracts</h6>
+                <p>Gemini reads and pulls company, role &amp; skills</p>
+            </div>
+            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <i class="bi bi-envelope-paper step-ico"></i>
+                <h6>Email Drafted</h6>
+                <p>Personalised email written with your real skills</p>
+            </div>
+            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
+            <div class="step-item">
+                <div class="step-num">4</div>
+                <i class="bi bi-send-check step-ico"></i>
+                <h6>Review &amp; Send</h6>
+                <p>Edit, approve and send via Gmail in one click</p>
+            </div>
         </div>
     </div>
-</div>
+
+</div><!-- /max-width wrapper -->
 
 @section Scripts {
-    <script>
-        // Drag and drop
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const uploadContent = document.getElementById('uploadContent');
-        const filePreview = document.getElementById('filePreview');
-        const fileSubmitSection = document.getElementById('fileSubmitSection');
+<script>
+    /* ── Helpers ─────────────────────────────────────────────── */
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
 
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); });
+    function showProcessing(label) {
+        document.getElementById('processingText').textContent = label || 'Processing with AI...';
+        document.getElementById('processingOverlay').classList.add('show');
+    }
+
+    /* ── Character counter ────────────────────────────────────── */
+    var textarea = document.getElementById('jobTextarea');
+    var charSpan = document.getElementById('charCount');
+    if (textarea && charSpan) {
+        textarea.addEventListener('input', function () {
+            charSpan.textContent = textarea.value.length;
         });
+    }
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'));
+    /* ── Image drop zone ─────────────────────────────────────── */
+    var imageZone   = document.getElementById('imageDropZone');
+    var imageInput  = document.getElementById('imageFileInput');
+    var imageChosen = document.getElementById('imageChosen');
+    var imageBtn    = document.getElementById('btn-image');
+
+    if (imageZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (evt) {
+            imageZone.addEventListener(evt, function (e) { e.preventDefault(); e.stopPropagation(); });
         });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'));
+        ['dragenter', 'dragover'].forEach(function (evt) {
+            imageZone.addEventListener(evt, function () { imageZone.classList.add('drag-over'); });
         });
-
-        dropZone.addEventListener('drop', e => {
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                fileInput.files = e.dataTransfer.files;
-                showFilePreview(file);
-            }
+        ['dragleave', 'drop'].forEach(function (evt) {
+            imageZone.addEventListener(evt, function () { imageZone.classList.remove('drag-over'); });
         });
-
-        fileInput.addEventListener('change', e => {
-            if (e.target.files[0]) showFilePreview(e.target.files[0]);
+        imageZone.addEventListener('drop', function (e) {
+            var file = e.dataTransfer.files[0];
+            if (file) { imageInput.files = e.dataTransfer.files; showImageFile(file); }
         });
+    }
 
-        function showFilePreview(file) {
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileSize').textContent = formatSize(file.size);
-            uploadContent.classList.add('d-none');
-            filePreview.classList.remove('d-none');
-            fileSubmitSection.classList.remove('d-none');
-        }
-
-        function clearFile() {
-            fileInput.value = '';
-            uploadContent.classList.remove('d-none');
-            filePreview.classList.add('d-none');
-            fileSubmitSection.classList.add('d-none');
-        }
-
-        function formatSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / 1048576).toFixed(1) + ' MB';
-        }
-
-        // Character counter
-        const textArea = document.getElementById('jobTextInput');
-        const charCount = document.getElementById('charCount');
-        if (textArea && charCount) {
-            textArea.addEventListener('input', () => {
-                charCount.textContent = textArea.value.length;
-            });
-        }
-
-        // Loading states
-        document.getElementById('fileForm')?.addEventListener('submit', function() {
-            const btn = document.getElementById('processFileBtn');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
-            btn.disabled = true;
+    if (imageInput) {
+        imageInput.addEventListener('change', function (e) {
+            if (e.target.files[0]) showImageFile(e.target.files[0]);
         });
+    }
 
-        document.querySelector('#textUpload form')?.addEventListener('submit', function() {
-            const btn = document.getElementById('processTextBtn');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
-            btn.disabled = true;
-        });
+    function showImageFile(file) {
+        document.getElementById('imageFileName').textContent = file.name;
+        document.getElementById('imageFileSize').textContent = formatBytes(file.size);
+        imageZone.classList.add('d-none');
+        imageChosen.classList.remove('d-none');
+        imageBtn.classList.remove('d-none');
+    }
 
-        document.querySelector('#urlUpload form')?.addEventListener('submit', function() {
-            const btn = document.getElementById('processUrlBtn');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Extracting...';
-            btn.disabled = true;
+    function clearImageFile() {
+        imageInput.value = '';
+        imageZone.classList.remove('d-none');
+        imageChosen.classList.add('d-none');
+        imageBtn.classList.add('d-none');
+    }
+
+    /* ── PDF drop zone ───────────────────────────────────────── */
+    var pdfZone   = document.getElementById('pdfDropZone');
+    var pdfInput  = document.getElementById('pdfFileInput');
+    var pdfChosen = document.getElementById('pdfChosen');
+    var pdfBtn    = document.getElementById('btn-pdf');
+
+    if (pdfZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (evt) {
+            pdfZone.addEventListener(evt, function (e) { e.preventDefault(); e.stopPropagation(); });
         });
-    </script>
+        ['dragenter', 'dragover'].forEach(function (evt) {
+            pdfZone.addEventListener(evt, function () { pdfZone.classList.add('drag-over'); });
+        });
+        ['dragleave', 'drop'].forEach(function (evt) {
+            pdfZone.addEventListener(evt, function () { pdfZone.classList.remove('drag-over'); });
+        });
+        pdfZone.addEventListener('drop', function (e) {
+            var file = e.dataTransfer.files[0];
+            if (file) { pdfInput.files = e.dataTransfer.files; showPdfFile(file); }
+        });
+    }
+
+    if (pdfInput) {
+        pdfInput.addEventListener('change', function (e) {
+            if (e.target.files[0]) showPdfFile(e.target.files[0]);
+        });
+    }
+
+    function showPdfFile(file) {
+        document.getElementById('pdfFileName').textContent = file.name;
+        document.getElementById('pdfFileSize').textContent = formatBytes(file.size);
+        pdfZone.classList.add('d-none');
+        pdfChosen.classList.remove('d-none');
+        pdfBtn.classList.remove('d-none');
+    }
+
+    function clearPdfFile() {
+        pdfInput.value = '';
+        pdfZone.classList.remove('d-none');
+        pdfChosen.classList.add('d-none');
+        pdfBtn.classList.add('d-none');
+    }
+
+    /* ── Form submit → processing overlay ───────────────────── */
+    document.getElementById('form-text').addEventListener('submit', function (e) {
+        if (!textarea.value.trim()) { e.preventDefault(); textarea.focus(); return; }
+        document.getElementById('btn-text').disabled = true;
+        showProcessing('Analysing job description...');
+    });
+
+    document.getElementById('form-url').addEventListener('submit', function () {
+        document.getElementById('btn-url').disabled = true;
+        showProcessing('Fetching and extracting from URL...');
+    });
+
+    document.getElementById('form-image').addEventListener('submit', function () {
+        document.getElementById('btn-image').disabled = true;
+        showProcessing('Reading screenshot with AI...');
+    });
+
+    document.getElementById('form-pdf').addEventListener('submit', function () {
+        document.getElementById('btn-pdf').disabled = true;
+        showProcessing('Parsing PDF document...');
+    });
+</script>
 }
