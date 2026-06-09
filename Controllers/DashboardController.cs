@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using JobAutomation.Data;
@@ -125,27 +126,85 @@ public class DashboardController : Controller
         if (string.IsNullOrWhiteSpace(scoutedJob.LinkedInUrl))
             return BadRequest(new { success = false, message = "No URL available for this scouted job." });
 
+        // Detect contact info in raw post text
+        var rawText = scoutedJob.RawText ?? "";
+        var emailMatch = Regex.Match(rawText, @"[\w.+\-]+@[\w\-]+\.[a-zA-Z]{2,}", RegexOptions.IgnoreCase);
+        var phoneMatch = Regex.Match(rawText, @"\+?\d[\d\s\-\(\)]{7,}\d");
+        var hasContactInfo = emailMatch.Success || phoneMatch.Success;
+        var contactEmail = emailMatch.Success ? emailMatch.Value : null;
+
+        var board = scoutedJob.Board ?? "LinkedIn";
+        var isExternalBoard = board != "LinkedIn";
+
         scoutedJob.Status = ScoutedJobStatus.Applied;
         await _dbContext.SaveChangesAsync();
 
         TelegramProgressTracker.ResetProgress(999);
+
         var url = scoutedJob.LinkedInUrl;
+        var jobId = scoutedJob.Id;
         var scopeFactory = _scopeFactory;
         var logger = _logger;
 
-        // Create a new DI scope so services aren't disposed when the request ends
         _ = Task.Run(async () =>
         {
             using var scope = scopeFactory.CreateScope();
-            var jobProcessingService = scope.ServiceProvider.GetRequiredService<JobProcessingService>();
-            try
+            var db = scope.ServiceProvider.GetRequiredService<JobAutomation.Data.AppDbContext>();
+            var profile = await db.UserProfiles.FirstOrDefaultAsync();
+            var resume = await db.Resumes.FirstOrDefaultAsync(r => r.IsActive);
+            string? resumePath = null;
+            if (resume?.FilePath != null)
             {
-                await jobProcessingService.ProcessUrlAsync(url, JobSource.Upload, 999);
+                var normalized = resume.FilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+                var full = Path.Combine(Directory.GetCurrentDirectory(), normalized);
+                if (System.IO.File.Exists(full)) resumePath = full;
             }
-            catch (Exception ex)
+
+            // ── Step A: Direct Apply on Naukri / Indeed ────────────────────
+            if (isExternalBoard && profile != null)
             {
-                logger.LogError(ex, "Web-triggered pipeline failed for scouted job {Id}", id);
-                TelegramProgressTracker.UpdateProgress(999, $"Step 2: Pipeline crashed ❌ ({ex.Message})");
+                TelegramProgressTracker.UpdateProgress(999, $"Step 1: Launching Direct Apply on {board}... ⏳");
+                try
+                {
+                    var directApply = scope.ServiceProvider.GetRequiredService<DirectApplyService>();
+                    var (success, message) = await directApply.ApplyAsync(scoutedJob, profile, resumePath);
+                    TelegramProgressTracker.UpdateProgress(999, success
+                        ? $"Step 1: Applied directly on {board} ✅"
+                        : $"Step 1: Direct apply on {board} — {message} ⚠️");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Direct apply failed for scouted job {Id}", jobId);
+                    TelegramProgressTracker.UpdateProgress(999, $"Step 1: Direct apply crashed ❌ ({ex.Message})");
+                }
+            }
+
+            // ── Step B: Email pipeline ─────────────────────────────────────
+            // Run email pipeline when:
+            //   • LinkedIn job (always use email pipeline)
+            //   • OR contact info (email/phone) found in post
+            var shouldRunEmailPipeline = !isExternalBoard || hasContactInfo;
+
+            if (shouldRunEmailPipeline)
+            {
+                var reason = !isExternalBoard ? "LinkedIn job" : $"contact info found in post ({(contactEmail ?? "phone")})";
+                TelegramProgressTracker.UpdateProgress(999, $"Step 2: {reason} — generating personalized email... ⏳");
+
+                try
+                {
+                    var jobProcessingService = scope.ServiceProvider.GetRequiredService<JobProcessingService>();
+                    await jobProcessingService.ProcessUrlAsync(url, JobSource.Upload, 999);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Email pipeline failed for scouted job {Id}", jobId);
+                    TelegramProgressTracker.UpdateProgress(999, $"Step 2: Email pipeline crashed ❌ ({ex.Message})");
+                }
+            }
+            else
+            {
+                TelegramProgressTracker.UpdateProgress(999, "Step 2: No contact info in post — skipping email pipeline ℹ️");
+                TelegramProgressTracker.UpdateProgress(999, "Step 5: Email draft ready! Review and approve on dashboard ✅");
             }
         });
 

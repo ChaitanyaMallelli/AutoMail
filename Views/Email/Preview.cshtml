@@ -588,11 +588,25 @@
                 </div>
 
                 <!-- Email form fields -->
+                @if (!email.IsSent && string.IsNullOrWhiteSpace(email.RecipientEmail))
+                {
+                    <div class="alert d-flex align-items-start gap-2 mb-3 p-3 rounded-3"
+                         style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;font-size:13px;">
+                        <i class="bi bi-exclamation-triangle-fill mt-1" style="flex-shrink:0;"></i>
+                        <div>
+                            <strong>No recruiter email found.</strong>
+                            This job post did not contain a recruiter email address and our automatic search couldn't find one.
+                            Please enter it manually in the <strong>To</strong> field below before sending.
+                        </div>
+                    </div>
+                }
                 <form method="post" id="emailForm">
                     <div class="email-field">
                         <label class="email-label">To</label>
-                        <input type="email" name="recipientEmail" class="form-control email-input"
-                               value="@email.RecipientEmail" id="recipientEmail" @(email.IsSent ? "readonly" : "") />
+                        <input type="email" name="recipientEmail" class="form-control email-input @(string.IsNullOrWhiteSpace(email.RecipientEmail) && !email.IsSent ? "border-warning" : "")"
+                               value="@email.RecipientEmail" id="recipientEmail"
+                               placeholder="@(string.IsNullOrWhiteSpace(email.RecipientEmail) ? "Enter recruiter email manually..." : "")"
+                               @(email.IsSent ? "readonly" : "") />
                     </div>
 
                     <div class="email-field">

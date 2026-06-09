@@ -28,4 +28,8 @@ public class ScoutedJob
     public ScoutedJobStatus Status { get; set; } = ScoutedJobStatus.New;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Which board this job was scouted from
+    [MaxLength(50)]
+    public string Board { get; set; } = "LinkedIn";
 }

@@ -3,8 +3,10 @@ using JobAutomation.Models;
 
 namespace JobAutomation.Services;
 
-public class LinkedInScraperService
+public class LinkedInScraperService : IJobBoardScraper
 {
+    public string BoardName => "LinkedIn";
+
     private readonly string _email;
     private readonly string _password;
     private readonly ILogger<LinkedInScraperService> _logger;
@@ -16,7 +18,7 @@ public class LinkedInScraperService
         _logger = logger;
     }
 
-    public async Task<List<ScoutedJob>> ScrapePostsAsync(List<string> keywords)
+    public async Task<List<ScoutedJob>> ScrapePostsAsync(List<string> keywords, CancellationToken cancellationToken = default)
     {
         var foundJobs = new List<ScoutedJob>();
 
@@ -198,7 +200,8 @@ public class LinkedInScraperService
                         {
                             LinkedInUrl = url,
                             RawText = rawText,
-                            KeywordMatched = keyword
+                            KeywordMatched = keyword,
+                            Board = BoardName
                         });
                     }
                 }

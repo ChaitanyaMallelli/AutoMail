@@ -27,7 +27,13 @@ builder.Services.AddScoped<ResumeMatchingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<JobProcessingService>();
 builder.Services.AddScoped<TelegramService>();
+// Job board scrapers — registered as IJobBoardScraper so JobScoutManager gets all via IEnumerable
 builder.Services.AddScoped<LinkedInScraperService>();
+builder.Services.AddScoped<IJobBoardScraper, LinkedInScraperService>();
+builder.Services.AddScoped<IJobBoardScraper, NaukriScraperService>();
+builder.Services.AddScoped<IJobBoardScraper, IndeedScraperService>();
+builder.Services.AddScoped<CompanyEmailFinderService>();
+builder.Services.AddScoped<DirectApplyService>();
 builder.Services.AddScoped<JobScoutManager>();
 
 // builder.Services.AddSignalR(); // Temporarily disabled Co-Pilot
@@ -69,6 +75,8 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplyClassification\" character varying(50) NULL;"); } catch { }
         // Persist Telegram chat ID on UserProfile so it survives job data clears
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"UserProfiles\" ADD COLUMN \"TelegramChatId\" bigint NULL;"); } catch { }
+        // Multi-board scout: track which board each scouted job came from
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"Board\" character varying(50) NOT NULL DEFAULT 'LinkedIn';"); } catch { }
         // Link manually placed resume file to active resume record if FilePath is missing
         try { db.Database.ExecuteSqlRaw("UPDATE \"Resumes\" SET \"FilePath\" = 'Resume/Chaitanya_Mallelli_Resume.pdf' WHERE \"IsActive\" = true AND (\"FilePath\" IS NULL OR \"FilePath\" = '');"); } catch { }
 

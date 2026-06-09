@@ -461,6 +461,7 @@
                         <thead>
                             <tr>
                                 <th style="width:120px;">Date</th>
+                                <th style="width:90px;">Board</th>
                                 <th style="width:130px;">Keyword</th>
                                 <th style="width:160px;">Status</th>
                                 <th>Text Preview</th>
@@ -473,6 +474,17 @@
                                 <tr>
                                     <td class="align-middle">
                                         <span class="date-text">@sJob.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        @{
+                                            var boardColor = (sJob.Board ?? "LinkedIn") switch {
+                                                "Naukri"   => "background:#0d6efd22;color:#60a5fa;border:1px solid #0d6efd44",
+                                                "Indeed"   => "background:#19875422;color:#4ade80;border:1px solid #19875444",
+                                                "Wellfound"=> "background:#7c3aed22;color:#c4b5fd;border:1px solid #7c3aed44",
+                                                _          => "background:#0284c722;color:#38bdf8;border:1px solid #0284c744"
+                                            };
+                                        }
+                                        <span class="badge rounded-pill" style="font-size:10px;@boardColor">@(sJob.Board ?? "LinkedIn")</span>
                                     </td>
                                     <td class="align-middle">
                                         <span class="badge bg-secondary">@sJob.KeywordMatched</span>

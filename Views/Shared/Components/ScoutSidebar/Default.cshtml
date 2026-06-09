@@ -43,7 +43,7 @@
                         <i class="bi @statusIcon"></i>
                     </div>
                     <div class="scout-sidebar-text">
-                        <span class="scout-sidebar-keyword">@job.KeywordMatched</span>
+                        <span class="scout-sidebar-keyword">@job.KeywordMatched <span style="opacity:0.6;font-weight:400;">· @(job.Board ?? "LinkedIn")</span></span>
                         <span class="scout-sidebar-preview">@preview</span>
                         <span class="scout-sidebar-time">@job.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</span>
                     </div>

@@ -417,6 +417,9 @@ Email format rules:
         }
     }
 
+    // Exposed for use by other services (e.g. CompanyEmailFinderService)
+    public Task<string> CallGeminiPublicAsync(string prompt) => CallGeminiAsync(prompt);
+
     private async Task<string> CallGeminiAsync(string prompt)
     {
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";

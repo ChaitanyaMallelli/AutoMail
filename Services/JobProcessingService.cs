@@ -11,17 +11,20 @@ public class JobProcessingService
     private readonly AppDbContext _dbContext;
     private readonly GeminiService _geminiService;
     private readonly ResumeMatchingService _resumeMatchingService;
+    private readonly CompanyEmailFinderService _emailFinder;
     private readonly ILogger<JobProcessingService> _logger;
 
     public JobProcessingService(
         AppDbContext dbContext,
         GeminiService geminiService,
         ResumeMatchingService resumeMatchingService,
+        CompanyEmailFinderService emailFinder,
         ILogger<JobProcessingService> logger)
     {
         _dbContext = dbContext;
         _geminiService = geminiService;
         _resumeMatchingService = resumeMatchingService;
+        _emailFinder = emailFinder;
         _logger = logger;
     }
 
@@ -320,6 +323,28 @@ public class JobProcessingService
             }
         }
 
+        // Step 3.8: If no recruiter email found, try CompanyEmailFinderService
+        if (string.IsNullOrWhiteSpace(extraction.RecruiterEmail))
+        {
+            if (chatId.HasValue)
+                TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 3.8: No email in job post — searching company website... ⏳");
+
+            var foundEmail = await _emailFinder.FindRecruiterEmailAsync(extraction.CompanyName, extraction.Role);
+            if (!string.IsNullOrWhiteSpace(foundEmail))
+            {
+                extraction.RecruiterEmail = foundEmail;
+                _logger.LogInformation("Email finder resolved recruiter email: {Email}", foundEmail);
+                if (chatId.HasValue)
+                    TelegramProgressTracker.UpdateProgress(chatId.Value, $"Step 3.8: Found recruiter email → {foundEmail} ✅");
+            }
+            else
+            {
+                _logger.LogWarning("Email finder could not find recruiter email for {Company}.", extraction.CompanyName);
+                if (chatId.HasValue)
+                    TelegramProgressTracker.UpdateProgress(chatId.Value, "Step 3.8: No recruiter email found — you can add it manually on the preview page ⚠️");
+            }
+        }
+
         // Save job post
         var jobPost = new JobPost
         {
@@ -361,7 +386,7 @@ public class JobProcessingService
                         JobPostId = jobPost.Id,
                         Subject = emailDraft.Subject,
                         Body = emailDraft.Body,
-                        RecipientEmail = extraction.RecruiterEmail ?? emailDraft.RecipientEmail,
+                        RecipientEmail = extraction.RecruiterEmail ?? emailDraft.RecipientEmail ?? "",
                         Tone = tone,
                         CreatedAt = DateTime.UtcNow
                     };
