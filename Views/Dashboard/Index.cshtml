@@ -204,17 +204,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        @{
-            var scoutedJobsCount = (ViewBag.ScoutedJobs as List<JobAutomation.Models.ScoutedJob>)?.Count ?? 0;
-        }
         <button class="nav-link" id="scout-logs-tab"
                 data-bs-toggle="tab" data-bs-target="#scout-logs"
                 type="button" role="tab" aria-controls="scout-logs" aria-selected="false">
             <i class="bi bi-robot me-2"></i>LinkedIn Scout Logs
-            @if (scoutedJobsCount > 0)
-            {
-                <span class="badge ms-1" style="background:rgba(255,255,255,0.18);color:#fff;font-size:10px;">@scoutedJobsCount</span>
-            }
+            <span class="badge ms-1" id="scoutBadge" style="background:rgba(255,255,255,0.18);color:#fff;font-size:10px;display:none;"></span>
         </button>
     </li>
 </ul>
@@ -433,31 +427,51 @@
                 </div>
             }
         </div>
+
+        @* Pagination *@
+        @if (ViewBag.TotalPages > 1)
+        {
+            var currentPage = (int)ViewBag.Page;
+            var totalPages  = (int)ViewBag.TotalPages;
+            <nav class="mt-3 d-flex align-items-center justify-content-between">
+                <span class="text-muted text-sm">
+                    Showing @(((currentPage - 1) * 20) + 1)–@(Math.Min(currentPage * 20, (int)ViewBag.TotalFiltered)) of @ViewBag.TotalFiltered jobs
+                </span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <a class="page-link" href="?page=@(currentPage - 1)&search=@ViewBag.Search&status=@ViewBag.Status&sort=@ViewBag.Sort">‹</a>
+                    </li>
+                    @for (int p = Math.Max(1, currentPage - 2); p <= Math.Min(totalPages, currentPage + 2); p++)
+                    {
+                        <li class="page-item @(p == currentPage ? "active" : "")">
+                            <a class="page-link" href="?page=@p&search=@ViewBag.Search&status=@ViewBag.Status&sort=@ViewBag.Sort">@p</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <a class="page-link" href="?page=@(currentPage + 1)&search=@ViewBag.Search&status=@ViewBag.Status&sort=@ViewBag.Sort">›</a>
+                    </li>
+                </ul>
+            </nav>
+        }
     </div>
 
     @* ────────────────────────────────────────────────────────────
-       TAB 2: LinkedIn Scout Logs
+       TAB 2: LinkedIn Scout Logs (lazy-loaded on tab open)
        ──────────────────────────────────────────────────────────── *@
     <div class="tab-pane fade" id="scout-logs" role="tabpanel" aria-labelledby="scout-logs-tab">
-        @{
-            var scoutedJobs = ViewBag.ScoutedJobs as List<JobAutomation.Models.ScoutedJob> ?? new List<JobAutomation.Models.ScoutedJob>();
-        }
-        <div class="glass-panel p-0 overflow-hidden">
-            @if (scoutedJobs.Count == 0)
-            {
-                <div class="empty-state py-5">
+        <div class="glass-panel p-0 overflow-hidden" id="scoutLogsPanel">
+            <div class="empty-state py-5" id="scoutLogsLoading">
+                <span class="spinner-border text-accent" style="width:2rem;height:2rem;"></span>
+                <p class="text-muted mt-3">Loading scout logs...</p>
+            </div>
+            <div id="scoutLogsContent" style="display:none;">
+                <div class="empty-state py-5" id="scoutLogsEmpty" style="display:none;">
                     <i class="bi bi-robot empty-icon"></i>
                     <h3>No scout logs yet</h3>
-                    <p>The background LinkedIn scout hasn't run yet, or no matches were found for your keywords.</p>
-                    <button id="btnRunScout2" class="btn btn-outline-info d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-search"></i> Run Scout Now
-                    </button>
+                    <p>The background LinkedIn scout hasn't run yet, or no matches were found.</p>
                 </div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 table-sticky-head">
+                <div class="table-responsive" id="scoutLogsTable" style="display:none;">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
                                 <th style="width:120px;">Date</th>
@@ -468,99 +482,10 @@
                                 <th class="text-end pe-4" style="width:190px;">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @foreach (var sJob in scoutedJobs)
-                            {
-                                <tr>
-                                    <td class="align-middle">
-                                        <span class="date-text">@sJob.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</span>
-                                    </td>
-                                    <td class="align-middle">
-                                        @{
-                                            var boardColor = (sJob.Board ?? "LinkedIn") switch {
-                                                "Naukri"   => "background:#0d6efd22;color:#60a5fa;border:1px solid #0d6efd44",
-                                                "Indeed"   => "background:#19875422;color:#4ade80;border:1px solid #19875444",
-                                                "Wellfound"=> "background:#7c3aed22;color:#c4b5fd;border:1px solid #7c3aed44",
-                                                _          => "background:#0284c722;color:#38bdf8;border:1px solid #0284c744"
-                                            };
-                                        }
-                                        <span class="badge rounded-pill" style="font-size:10px;@boardColor">@(sJob.Board ?? "LinkedIn")</span>
-                                    </td>
-                                    <td class="align-middle">
-                                        <span class="badge bg-secondary">@sJob.KeywordMatched</span>
-                                    </td>
-                                    <td class="align-middle">
-                                        @switch (sJob.Status)
-                                        {
-                                            case JobAutomation.Models.ScoutedJobStatus.New:
-                                                <span class="d-inline-flex align-items-center gap-1">
-                                                    <span class="scout-dot scout-dot-new"></span>
-                                                    <span class="badge bg-secondary">New</span>
-                                                </span>
-                                                break;
-                                            case JobAutomation.Models.ScoutedJobStatus.SentToTelegram:
-                                                <span class="d-inline-flex align-items-center gap-1">
-                                                    <span class="scout-dot scout-dot-telegram"></span>
-                                                    <span class="badge bg-info text-dark"><i class="bi bi-telegram me-1"></i>Sent to Telegram</span>
-                                                </span>
-                                                break;
-                                            case JobAutomation.Models.ScoutedJobStatus.IgnoredByGemini:
-                                                <span class="d-inline-flex align-items-center gap-1">
-                                                    <span class="scout-dot scout-dot-ignored"></span>
-                                                    <span class="badge bg-dark text-muted"><i class="bi bi-x-circle me-1"></i>Ignored by AI</span>
-                                                </span>
-                                                break;
-                                            case JobAutomation.Models.ScoutedJobStatus.Applied:
-                                                <span class="d-inline-flex align-items-center gap-1">
-                                                    <span class="scout-dot scout-dot-applied"></span>
-                                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Applied</span>
-                                                </span>
-                                                break;
-                                            default:
-                                                <span class="badge bg-secondary">@sJob.Status</span>
-                                                break;
-                                        }
-                                    </td>
-                                    <td class="align-middle">
-                                        <span class="role-text text-truncate d-inline-block"
-                                              style="max-width:420px;"
-                                              title="@sJob.RawText">
-                                            @(sJob.RawText != null && sJob.RawText.Length > 90
-                                                ? sJob.RawText.Substring(0, 90) + "…"
-                                                : sJob.RawText)
-                                        </span>
-                                    </td>
-                                    <td class="align-middle text-end pe-4">
-                                        <div class="d-flex justify-content-end gap-2">
-                                            <a href="@sJob.LinkedInUrl" target="_blank"
-                                               class="btn btn-sm btn-outline-info"
-                                               title="Open LinkedIn post">
-                                                <i class="bi bi-box-arrow-up-right me-1"></i>Post
-                                            </a>
-                                            @if (sJob.Status == JobAutomation.Models.ScoutedJobStatus.New ||
-                                                 sJob.Status == JobAutomation.Models.ScoutedJobStatus.SentToTelegram)
-                                            {
-                                                <button type="button"
-                                                        class="btn btn-sm btn-glow btn-web-apply"
-                                                        data-job-id="@sJob.Id"
-                                                        title="Apply via AutoMail">
-                                                    <i class="bi bi-send-fill me-1"></i>Apply
-                                                </button>
-                                            }
-                                            else if (sJob.Status == JobAutomation.Models.ScoutedJobStatus.Applied)
-                                            {
-                                                <button type="button" class="btn btn-sm btn-outline-success" disabled>
-                                                    <i class="bi bi-check-circle-fill me-1"></i>Applied
-                                                </button>
-                                            }
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
+                        <tbody id="scoutLogsTbody"></tbody>
                     </table>
                 </div>
-            }
+            </div>
         </div>
     </div>
 
@@ -653,6 +578,81 @@
         }
 
         attachScoutHandler('btnRunScout');
-        attachScoutHandler('btnRunScout2'); // empty-state button in scout tab
+
+        // ── Lazy-load Scout Logs on first tab open ───────────────────
+        let scoutLogsLoaded = false;
+        const STATUS_MAP = {
+            'New':             '<span class="badge bg-secondary">New</span>',
+            'SentToTelegram':  '<span class="badge bg-info text-dark"><i class="bi bi-telegram me-1"></i>Sent to Telegram</span>',
+            'IgnoredByGemini': '<span class="badge bg-dark text-muted"><i class="bi bi-x-circle me-1"></i>Ignored by AI</span>',
+            'Applied':         '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Applied</span>',
+        };
+
+        document.getElementById('scout-logs-tab').addEventListener('shown.bs.tab', async function () {
+            if (scoutLogsLoaded) return;
+            scoutLogsLoaded = true;
+            try {
+                const res = await fetch('@Url.Action("GetScoutLogs", "Dashboard")');
+                const jobs = await res.json();
+
+                document.getElementById('scoutLogsLoading').style.display = 'none';
+
+                if (jobs.length === 0) {
+                    document.getElementById('scoutLogsEmpty').style.display = '';
+                    document.getElementById('scoutLogsContent').style.display = '';
+                    return;
+                }
+
+                // Update badge
+                const badge = document.getElementById('scoutBadge');
+                badge.textContent = jobs.length;
+                badge.style.display = '';
+
+                const tbody = document.getElementById('scoutLogsTbody');
+                tbody.innerHTML = jobs.map(j => {
+                    const statusHtml = STATUS_MAP[j.status] || `<span class="badge bg-secondary">${j.status}</span>`;
+                    const applyBtn = (j.status === 'New' || j.status === 'SentToTelegram')
+                        ? `<button type="button" class="btn btn-sm btn-glow btn-web-apply" data-job-id="${j.id}"><i class="bi bi-send-fill me-1"></i>Apply</button>`
+                        : j.status === 'Applied'
+                            ? `<button class="btn btn-sm btn-outline-success" disabled><i class="bi bi-check-circle-fill me-1"></i>Applied</button>`
+                            : '';
+                    return `<tr>
+                        <td class="align-middle"><span class="date-text">${j.createdAt}</span></td>
+                        <td class="align-middle"><span class="badge rounded-pill" style="font-size:10px;background:#0284c722;color:#38bdf8;border:1px solid #0284c744">${j.board}</span></td>
+                        <td class="align-middle"><span class="badge bg-secondary">${j.keyword || ''}</span></td>
+                        <td class="align-middle">${statusHtml}</td>
+                        <td class="align-middle"><span class="text-muted" style="font-size:13px;" title="${(j.rawPreview||'').replace(/"/g,'&quot;')}">${j.rawPreview || ''}</span></td>
+                        <td class="align-middle text-end pe-4">
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="${j.url}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-box-arrow-up-right me-1"></i>Post</a>
+                                ${applyBtn}
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+
+                document.getElementById('scoutLogsTable').style.display = '';
+                document.getElementById('scoutLogsContent').style.display = '';
+
+                // Wire apply buttons in dynamically rendered rows
+                document.querySelectorAll('#scoutLogsTbody .btn-web-apply').forEach(btn => {
+                    btn.addEventListener('click', async function () {
+                        const jobId = this.dataset.jobId;
+                        const originalHtml = this.innerHTML;
+                        this.disabled = true;
+                        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Starting...';
+                        try {
+                            const r = await fetch(`@Url.Action("ApplyScoutedJob", "Dashboard")?id=${jobId}`, { method: 'POST' });
+                            const result = await r.json();
+                            if (result.success) window.location.href = result.redirectUrl;
+                            else { alert('Failed: ' + (result.message || 'Unknown')); this.disabled = false; this.innerHTML = originalHtml; }
+                        } catch (err) { alert('Request failed.'); this.disabled = false; this.innerHTML = originalHtml; }
+                    });
+                });
+            } catch (err) {
+                console.error('Failed to load scout logs', err);
+                document.getElementById('scoutLogsLoading').innerHTML = '<p class="text-danger">Failed to load scout logs.</p>';
+            }
+        });
     </script>
 }

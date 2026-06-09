@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using JobAutomation.DTOs;
@@ -11,21 +13,35 @@ public class GeminiService
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private readonly string _model;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<GeminiService> _logger;
 
-    public GeminiService(HttpClient httpClient, IConfiguration configuration, ILogger<GeminiService> logger)
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(2);
+
+    public GeminiService(HttpClient httpClient, IConfiguration configuration, IMemoryCache cache, ILogger<GeminiService> logger)
     {
         _httpClient = httpClient;
         _apiKey = configuration["GeminiApi:ApiKey"] ?? throw new ArgumentNullException("GeminiApi:ApiKey is not configured");
-        _model = configuration["GeminiApi:Model"] ?? "gemini-2.5-flash";
+        _model = configuration["GeminiApi:Model"] ?? "gemini-2.0-flash-lite";
+        _cache = cache;
         _logger = logger;
+    }
+
+    private static string Hash(string input)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes)[..16];
     }
 
     public async Task<JobExtractionResult> ExtractJobDetailsFromTextAsync(string text)
     {
+        var key = $"gemini:text:{Hash(text)}";
+        if (_cache.TryGetValue(key, out JobExtractionResult? cached) && cached != null) return cached;
         var prompt = BuildExtractionPrompt(text);
         var response = await CallGeminiAsync(prompt);
-        return ParseExtractionResponse(response, text);
+        var result = ParseExtractionResponse(response, text);
+        if (result.IsSuccessful) _cache.Set(key, result, CacheTtl);
+        return result;
     }
 
     public async Task<JobExtractionResult> ExtractJobDetailsFromImageAsync(byte[] imageBytes, string mimeType = "image/png")
@@ -44,32 +60,16 @@ public class GeminiService
 
     public async Task<JobExtractionResult> ExtractJobDetailsFromUrlContentAsync(string htmlContent, string url)
     {
-        var prompt = $@"You are a job posting analyzer. The following is the HTML/text content fetched from a job listing URL ({url}).
-Extract the following details from this content.
-Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
-
-{{
-  ""companyName"": ""extracted company name or 'Unknown'"",
-  ""role"": ""job title/role"",
-  ""requiredSkills"": ""comma-separated list of required skills"",
-  ""recruiterEmail"": ""email address if found, or null"",
-  ""experienceRequired"": ""experience requirement e.g. '2-4 years' or null"",
-  ""location"": ""job location or 'Remote' or null""
-}}
-
-Rules:
-- Extract information accurately from the content.
-- Ignore navigation menus, footers, ads, and other non-job content.
-- If a field is not found, use null.
-- For recruiterEmail, look for email addresses carefully.
-- For skills, list all technical and soft skills mentioned.
-- Be thorough but accurate. Never make up information.
-
-Content:
-{htmlContent[..Math.Min(htmlContent.Length, 8000)]}";
-
+        var key = $"gemini:url:{Hash(url)}";
+        if (_cache.TryGetValue(key, out JobExtractionResult? cached) && cached != null) return cached;
+        var truncated = htmlContent[..Math.Min(htmlContent.Length, 8000)];
+        var prompt = $"Extract job details from this URL content ({url}). Return ONLY JSON (no markdown):\n" +
+                     "{\"companyName\":\"\",\"role\":\"\",\"requiredSkills\":\"\",\"recruiterEmail\":null,\"experienceRequired\":null,\"location\":null}\n" +
+                     "Rules: ignore nav/footer/ads; null if not found; never fabricate.\n\nContent:\n" + truncated;
         var response = await CallGeminiAsync(prompt);
-        return ParseExtractionResponse(response, url);
+        var result = ParseExtractionResponse(response, url);
+        if (result.IsSuccessful) _cache.Set(key, result, CacheTtl);
+        return result;
     }
 
     public async Task<ResumeExtractionResult> ExtractResumeDetailsFromPdfAsync(byte[] pdfBytes)
@@ -250,49 +250,52 @@ Do not output greetings or conversation. ONLY bullet points. Keep it extremely b
     {
         try
         {
-            var prompt = $@"You are a strict HR filter. Read the following LinkedIn post.
-Determine if the post is explicitly hiring a software developer AND explicitly requires exactly or more than 3 years of experience.
-
-If it explicitly mentions '3+ years', '3-5 years', 'minimum 3 years', etc., return exactly the word TRUE.
-If experience is not mentioned, or it is less than 3 years (e.g. '0-2 years', 'fresher'), return exactly the word FALSE.
-If the post is not a job opening, return exactly the word FALSE.
-
-Post text:
-{postText}";
-
+            var prompt = $"Is this a developer job requiring 3+ years experience? Reply TRUE or FALSE only.\n\n{postText[..Math.Min(postText.Length, 500)]}";
             var response = await CallGeminiAsync(prompt);
             return response.Trim().Equals("TRUE", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error filtering post via Gemini");
-            return false; // Safely ignore if API fails
+            return false;
         }
+    }
+
+    /// <summary>
+    /// Batch relevance check — one Gemini call for N posts instead of N calls.
+    /// Returns a bool per post in the same order.
+    /// </summary>
+    public async Task<List<bool>> BatchIsPostRelevantAsync(List<string> posts)
+    {
+        if (posts.Count == 0) return new List<bool>();
+        try
+        {
+            var numbered = string.Join("\n---\n", posts.Select((p, i) =>
+                $"[{i + 1}] {p[..Math.Min(p.Length, 400)]}"));
+            var prompt = $@"For each numbered post below, reply TRUE if it's a developer job requiring 3+ years experience, FALSE otherwise.
+Return ONLY a JSON array like [true,false,true] with exactly {posts.Count} values, no other text.
+
+{numbered}";
+            var response = await CallGeminiAsync(prompt);
+            var cleaned = CleanJsonResponse(response);
+            var results = JsonConvert.DeserializeObject<List<bool>>(cleaned);
+            if (results != null && results.Count == posts.Count) return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Batch relevance check failed, falling back to individual calls.");
+        }
+        // Fallback: individual calls
+        var fallback = new List<bool>();
+        foreach (var p in posts) fallback.Add(await IsPostRelevantAsync(p));
+        return fallback;
     }
 
     private string BuildExtractionPrompt(string text)
     {
-        return $@"You are a job posting analyzer. Extract the following details from this job posting text.
-Return ONLY a valid JSON object with these exact fields (no markdown, no code fences):
-
-{{
-  ""companyName"": ""extracted company name or 'Unknown'"",
-  ""role"": ""job title/role"",
-  ""requiredSkills"": ""comma-separated list of required skills"",
-  ""recruiterEmail"": ""email address if found, or null"",
-  ""experienceRequired"": ""experience requirement e.g. '2-4 years' or null"",
-  ""location"": ""job location or 'Remote' or null""
-}}
-
-Rules:
-- Extract information accurately from the text.
-- If a field is not found, use null.
-- For recruiterEmail, look for email addresses in the text carefully.
-- For skills, list all technical and soft skills mentioned.
-- Be thorough but accurate. Never make up information.
-
-Job posting text:
-{text}";
+        return "Extract job details. Return ONLY JSON (no markdown):\n" +
+               "{\"companyName\":\"\",\"role\":\"\",\"requiredSkills\":\"\",\"recruiterEmail\":null,\"experienceRequired\":null,\"location\":null}\n" +
+               "Rules: null if missing; never fabricate; list all skills.\n\nText:\n" + text;
     }
 
     private string BuildImageExtractionPrompt()

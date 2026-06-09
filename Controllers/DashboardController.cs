@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using JobAutomation.Data;
+using JobAutomation.Extensions;
 using JobAutomation.Models;
 using JobAutomation.Services;
 
@@ -20,13 +21,14 @@ public class DashboardController : Controller
         _scopeFactory = scopeFactory;
     }
 
-    public async Task<IActionResult> Index(string? search, string? status, string? sort)
+    private const int PageSize = 20;
+
+    public async Task<IActionResult> Index(string? search, string? status, string? sort, int page = 1)
     {
         var query = _dbContext.JobPosts
             .Include(j => j.GeneratedEmail)
             .AsQueryable();
 
-        // Search filter
         if (!string.IsNullOrWhiteSpace(search))
         {
             search = search.Trim();
@@ -38,67 +40,85 @@ public class DashboardController : Controller
                 (j.RequiredSkills != null && j.RequiredSkills.ToLower().Contains(searchLower)));
         }
 
-        // Status filter
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<JobStatus>(status, out var jobStatus))
-        {
             query = query.Where(j => j.Status == jobStatus);
-        }
 
-        // Sorting
         query = sort switch
         {
             "company" => query.OrderBy(j => j.CompanyName),
-            "role" => query.OrderBy(j => j.Role),
-            "ats" => query.OrderByDescending(j => j.AtsScore),
-            "match" => query.OrderByDescending(j => j.SkillMatchPercentage),
-            _ => query.OrderByDescending(j => j.CreatedAt)
+            "role"    => query.OrderBy(j => j.Role),
+            "ats"     => query.OrderByDescending(j => j.AtsScore),
+            "match"   => query.OrderByDescending(j => j.SkillMatchPercentage),
+            _         => query.OrderByDescending(j => j.CreatedAt)
         };
 
-        var jobPosts = await query.ToListAsync();
+        // Paginate
+        var totalFiltered = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalFiltered / (double)PageSize);
+        page = Math.Clamp(page, 1, Math.Max(1, totalPages));
+        var jobPosts = await query.Skip((page - 1) * PageSize).Take(PageSize).ToListAsync();
 
-        // Dashboard stats
-        var totalJobs = await _dbContext.JobPosts.CountAsync(j => j.Status != JobStatus.Skipped);
-        var pendingJobs = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Pending || j.Status == JobStatus.EmailGenerated);
-        var sentJobs = await _dbContext.JobPosts.CountAsync(j => 
-            j.Status == JobStatus.Sent || 
-            j.Status == JobStatus.FollowUpSent || 
-            j.Status == JobStatus.InterviewScheduled || 
-            j.Status == JobStatus.Rejected || 
-            j.Status == JobStatus.Offered || 
-            j.Status == JobStatus.Ghosted);
-            
-        var failedJobs = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Failed);
-        
-        var interviews = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.InterviewScheduled);
-        var offers = await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Offered);
-        
+        // Single grouped query — one DB round-trip for all status counts
+        var statusCounts = await _dbContext.JobPosts
+            .GroupBy(j => j.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        int Count(JobStatus s) => statusCounts.FirstOrDefault(x => x.Status == s)?.Count ?? 0;
+
+        var totalJobs   = statusCounts.Where(x => x.Status != JobStatus.Skipped).Sum(x => x.Count);
+        var pendingJobs = Count(JobStatus.Pending) + Count(JobStatus.EmailGenerated);
+        var interviews  = Count(JobStatus.InterviewScheduled);
+        var offers      = Count(JobStatus.Offered);
+        var rejected    = Count(JobStatus.Rejected);
+        var sentJobs    = Count(JobStatus.Sent) + Count(JobStatus.FollowUpSent) +
+                          interviews + rejected + offers + Count(JobStatus.Ghosted);
+        var failedJobs  = Count(JobStatus.Failed);
+
         var avgMatch = totalJobs > 0
             ? (int)await _dbContext.JobPosts.Where(j => j.Status != JobStatus.Skipped).AverageAsync(j => (double)j.SkillMatchPercentage)
             : 0;
 
-        var responseRate = sentJobs > 0 
-            ? (int)Math.Round((double)(interviews + offers + await _dbContext.JobPosts.CountAsync(j => j.Status == JobStatus.Rejected)) / sentJobs * 100)
+        var responseRate = sentJobs > 0
+            ? (int)Math.Round((double)(interviews + offers + rejected) / sentJobs * 100)
             : 0;
 
-        var scoutedJobs = await _dbContext.ScoutedJobs
+        ViewBag.TotalJobs    = totalJobs;
+        ViewBag.PendingJobs  = pendingJobs;
+        ViewBag.SentJobs     = sentJobs;
+        ViewBag.FailedJobs   = failedJobs;
+        ViewBag.Interviews   = interviews;
+        ViewBag.Offers       = offers;
+        ViewBag.ResponseRate = responseRate;
+        ViewBag.AvgMatch     = avgMatch;
+        ViewBag.Search       = search;
+        ViewBag.Status       = status;
+        ViewBag.Sort         = sort;
+        ViewBag.Page         = page;
+        ViewBag.TotalPages   = totalPages;
+        ViewBag.TotalFiltered = totalFiltered;
+        // Scout logs are loaded lazily via GetScoutLogs endpoint
+
+        return View(jobPosts);
+    }
+
+    // Lazy-loaded by the Scout Logs tab on first open
+    [HttpGet]
+    public async Task<IActionResult> GetScoutLogs()
+    {
+        var jobs = await _dbContext.ScoutedJobs
             .OrderByDescending(s => s.CreatedAt)
             .Take(100)
             .ToListAsync();
-
-        ViewBag.TotalJobs = totalJobs;
-        ViewBag.PendingJobs = pendingJobs;
-        ViewBag.SentJobs = sentJobs;
-        ViewBag.FailedJobs = failedJobs;
-        ViewBag.Interviews = interviews;
-        ViewBag.Offers = offers;
-        ViewBag.ResponseRate = responseRate;
-        ViewBag.AvgMatch = avgMatch;
-        ViewBag.Search = search;
-        ViewBag.Status = status;
-        ViewBag.Sort = sort;
-        ViewBag.ScoutedJobs = scoutedJobs;
-
-        return View(jobPosts);
+        return Json(jobs.Select(j => new {
+            id         = j.Id,
+            createdAt  = j.CreatedAt.ToIst().ToString("MMM dd, HH:mm"),
+            keyword    = j.KeywordMatched,
+            status     = j.Status.ToString(),
+            rawPreview = j.RawText != null && j.RawText.Length > 90 ? j.RawText[..90] + "..." : j.RawText,
+            url        = j.LinkedInUrl,
+            board      = j.Board ?? "LinkedIn"
+        }));
     }
 
     [HttpPost]

@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
 // Add services to the container.
+builder.Services.AddMemoryCache();
 builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add<JobAutomation.Filters.PasscodeAuthFilter>();
@@ -27,11 +28,9 @@ builder.Services.AddScoped<ResumeMatchingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<JobProcessingService>();
 builder.Services.AddScoped<TelegramService>();
-// Job board scrapers — registered as IJobBoardScraper so JobScoutManager gets all via IEnumerable
+// Job board scrapers — only LinkedIn active; Naukri/Indeed kept in codebase but disabled
 builder.Services.AddScoped<LinkedInScraperService>();
 builder.Services.AddScoped<IJobBoardScraper, LinkedInScraperService>();
-builder.Services.AddScoped<IJobBoardScraper, NaukriScraperService>();
-builder.Services.AddScoped<IJobBoardScraper, IndeedScraperService>();
 builder.Services.AddScoped<CompanyEmailFinderService>();
 builder.Services.AddScoped<DirectApplyService>();
 builder.Services.AddScoped<JobScoutManager>();
@@ -75,6 +74,10 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"GeneratedEmails\" ADD COLUMN \"ReplyClassification\" character varying(50) NULL;"); } catch { }
         // Persist Telegram chat ID on UserProfile so it survives job data clears
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"UserProfiles\" ADD COLUMN \"TelegramChatId\" bigint NULL;"); } catch { }
+        // Performance indexes
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_scouted_jobs_url ON \"ScoutedJobs\" (\"LinkedInUrl\");"); } catch { }
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_scouted_jobs_status ON \"ScoutedJobs\" (\"Status\");"); } catch { }
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_job_posts_created ON \"JobPosts\" (\"CreatedAt\" DESC);"); } catch { }
         // Multi-board scout: track which board each scouted job came from
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"Board\" character varying(50) NOT NULL DEFAULT 'LinkedIn';"); } catch { }
         // Link manually placed resume file to active resume record if FilePath is missing

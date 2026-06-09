@@ -37,7 +37,6 @@ public class JobScoutManager
 
     public async Task RunScoutCycleAsync(CancellationToken cancellationToken = default)
     {
-        // Get chatId — prefer UserProfile (survives job data clears), fall back to JobPosts
         var chatId = (await _dbContext.UserProfiles
             .Where(p => p.TelegramChatId != null && p.TelegramChatId != 0)
             .Select(p => p.TelegramChatId)
@@ -48,77 +47,116 @@ public class JobScoutManager
                 .FirstOrDefaultAsync(cancellationToken))
             ?? 0;
 
-        // Run each board scraper in sequence
+        // Collect all scraped jobs across all boards
+        var allScraped = new List<ScoutedJob>();
         foreach (var scraper in _scrapers)
         {
             if (cancellationToken.IsCancellationRequested) break;
-
             _logger.LogInformation("Starting {Board} scrape...", scraper.BoardName);
-
-            List<ScoutedJob> scrapedJobs;
             try
             {
-                scrapedJobs = await scraper.ScrapePostsAsync(_searchKeywords, cancellationToken);
+                var jobs = await scraper.ScrapePostsAsync(_searchKeywords, cancellationToken);
+                allScraped.AddRange(jobs);
+                _logger.LogInformation("{Board}: {Count} raw posts scraped.", scraper.BoardName, jobs.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "{Board} scraper threw an exception. Continuing with next board.", scraper.BoardName);
-                continue;
+                _logger.LogError(ex, "{Board} scraper failed.", scraper.BoardName);
             }
-
-            // Deduplicate within this batch by URL
-            var newJobs = scrapedJobs
-                .GroupBy(j => j.LinkedInUrl)
-                .Select(g => g.First())
-                .ToList();
-
-            _logger.LogInformation("{Board}: {Raw} raw → {Unique} unique jobs.", scraper.BoardName, scrapedJobs.Count, newJobs.Count);
-
-            await ProcessJobsAsync(newJobs, chatId, cancellationToken);
         }
 
-        _logger.LogInformation("All board scout cycles complete.");
-    }
-
-    private async Task ProcessJobsAsync(List<ScoutedJob> jobs, long chatId, CancellationToken cancellationToken)
-    {
-        foreach (var job in jobs)
+        if (allScraped.Count == 0)
         {
-            if (cancellationToken.IsCancellationRequested) break;
-
-            // Skip if already seen (same URL or identical raw text)
-            var exists = await _dbContext.ScoutedJobs
-                .AnyAsync(j => j.LinkedInUrl == job.LinkedInUrl ||
-                               (job.RawText != null && j.RawText == job.RawText), cancellationToken);
-
-            if (exists)
-            {
-                _logger.LogInformation("Skipping duplicate: {Url}", job.LinkedInUrl);
-                continue;
-            }
-
-            // Gemini relevance filter — 3+ years experience
-            _logger.LogInformation("[{Board}] Analyzing with Gemini: {Url}", job.Board, job.LinkedInUrl);
-            var isRelevant = await _gemini.IsPostRelevantAsync(job.RawText ?? "");
-
-            if (!isRelevant)
-            {
-                _logger.LogInformation("❌ [{Board}] IGNORED: Does not meet 3+ years requirement.", job.Board);
-                job.Status = ScoutedJobStatus.IgnoredByGemini;
-                _dbContext.ScoutedJobs.Add(job);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                continue;
-            }
-
-            _logger.LogInformation("✅ [{Board}] MATCH: Saving and alerting.", job.Board);
-            job.Status = ScoutedJobStatus.SentToTelegram;
-            _dbContext.ScoutedJobs.Add(job);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            if (chatId != 0)
-                await _telegram.SendJobAlertAsync(chatId, job);
-
-            await Task.Delay(2000, cancellationToken);
+            _logger.LogInformation("No posts found across all boards.");
+            return;
         }
+
+        // Deduplicate by URL within this batch
+        var newJobs = allScraped
+            .GroupBy(j => j.LinkedInUrl)
+            .Select(g => g.First())
+            .ToList();
+
+        _logger.LogInformation("Total: {Raw} raw → {Unique} unique.", allScraped.Count, newJobs.Count);
+
+        // ── Bulk dedup against DB in ONE query ──────────────────────────
+        var candidateUrls = newJobs.Select(j => j.LinkedInUrl).ToHashSet();
+        var alreadySeenUrls = (await _dbContext.ScoutedJobs
+            .Where(j => candidateUrls.Contains(j.LinkedInUrl))
+            .Select(j => j.LinkedInUrl)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
+        var candidateRawTexts = newJobs
+            .Where(j => j.RawText != null)
+            .Select(j => j.RawText!)
+            .ToHashSet();
+        var alreadySeenTexts = candidateRawTexts.Count > 0
+            ? (await _dbContext.ScoutedJobs
+                .Where(j => j.RawText != null && candidateRawTexts.Contains(j.RawText!))
+                .Select(j => j.RawText!)
+                .ToListAsync(cancellationToken)).ToHashSet()
+            : new HashSet<string>();
+
+        var fresh = newJobs
+            .Where(j => !alreadySeenUrls.Contains(j.LinkedInUrl) &&
+                        (j.RawText == null || !alreadySeenTexts.Contains(j.RawText)))
+            .ToList();
+
+        _logger.LogInformation("{Fresh} new (unseen) posts to filter.", fresh.Count);
+
+        if (fresh.Count == 0) return;
+
+        // ── Batch Gemini relevance filter — one API call for all posts ──
+        var texts = fresh.Select(j => j.RawText ?? "").ToList();
+        List<bool> relevanceResults;
+        try
+        {
+            relevanceResults = await _gemini.BatchIsPostRelevantAsync(texts);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Batch relevance check failed entirely — skipping cycle.");
+            return;
+        }
+
+        // ── Assign status and collect all at once ───────────────────────
+        var toSave = new List<ScoutedJob>();
+        var toAlert = new List<ScoutedJob>();
+
+        for (int i = 0; i < fresh.Count; i++)
+        {
+            var job = fresh[i];
+            var isRelevant = i < relevanceResults.Count && relevanceResults[i];
+
+            if (isRelevant)
+            {
+                _logger.LogInformation("✅ MATCH: {Url}", job.LinkedInUrl);
+                job.Status = ScoutedJobStatus.SentToTelegram;
+                toAlert.Add(job);
+            }
+            else
+            {
+                _logger.LogInformation("❌ IGNORED: {Url}", job.LinkedInUrl);
+                job.Status = ScoutedJobStatus.IgnoredByGemini;
+            }
+            toSave.Add(job);
+        }
+
+        // ── Single bulk DB write ─────────────────────────────────────────
+        _dbContext.ScoutedJobs.AddRange(toSave);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Saved {Count} jobs. {Matches} match(es).", toSave.Count, toAlert.Count);
+
+        // ── Send Telegram alerts for matches ─────────────────────────────
+        if (chatId != 0)
+        {
+            foreach (var job in toAlert)
+            {
+                try { await _telegram.SendJobAlertAsync(chatId, job); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to send Telegram alert for {Url}", job.LinkedInUrl); }
+            }
+        }
+
+        _logger.LogInformation("Scout cycle complete.");
     }
 }
