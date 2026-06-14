@@ -5,172 +5,307 @@
 }
 
 <style>
-    /* ── History page local styles ──────────────────────────── */
-
-    /* Filter bar enhancements */
-    .history-filter-bar {
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 14px 20px;
-        margin-bottom: 24px;
-        animation: fadeInUp 0.35s ease both;
+    /* ── Design tokens ──────────────────────────────────────── */
+    :root {
+        --h-bg-base:        #09090b;
+        --h-bg-elevated:    #111118;
+        --h-bg-card:        #16161f;
+        --h-border:         rgba(255,255,255,0.07);
+        --h-border-hover:   rgba(124,58,237,0.35);
+        --h-accent-violet:  #7c3aed;
+        --h-accent-indigo:  #6366f1;
+        --h-accent-pink:    #ec4899;
+        --h-grad-primary:   linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+        --h-grad-hot:       linear-gradient(135deg, #ec4899 0%, #7c3aed 100%);
+        --h-glow-violet:    0 0 20px rgba(124,58,237,0.35);
+        --h-glow-sm:        0 0 12px rgba(124,58,237,0.2);
+        --h-text-primary:   #f4f4f5;
+        --h-text-secondary: #a1a1aa;
+        --h-text-muted:     #52525b;
+        --h-success:        #22c55e;
+        --h-success-bg:     rgba(34,197,94,0.12);
+        --h-warning:        #f59e0b;
+        --h-warning-bg:     rgba(245,158,11,0.12);
+        --h-danger:         #ef4444;
+        --h-danger-bg:      rgba(239,68,68,0.12);
+        --h-info:           #3b82f6;
+        --h-info-bg:        rgba(59,130,246,0.12);
+        --h-radius-sm:      6px;
+        --h-radius-md:      10px;
+        --h-radius-lg:      14px;
+        --h-radius-xl:      20px;
+        --h-radius-full:    9999px;
+        --h-font:           Inter, -apple-system, sans-serif;
+        --h-transition:     0.18s ease;
     }
 
-    .history-filter-form {
+    /* ── Filter panel ───────────────────────────────────────── */
+    .filter-panel {
+        background: var(--h-bg-card);
+        border: 1px solid var(--h-border);
+        border-radius: var(--h-radius-lg);
+        padding: 16px 20px;
+        margin-bottom: 24px;
+        animation: hFadeUp 0.32s ease both;
+    }
+
+    .filter-panel form {
         display: flex;
         align-items: center;
         gap: 12px;
         flex-wrap: wrap;
+        font-family: var(--h-font);
     }
 
-    .history-search-wrap {
+    .fp-search-wrap {
         flex: 1;
         min-width: 220px;
         position: relative;
     }
 
-    .history-search-wrap .search-icon {
+    .fp-search-wrap .fp-search-icon {
         position: absolute;
         left: 13px;
         top: 50%;
         transform: translateY(-50%);
-        color: var(--color-text-muted);
-        font-size: 14px;
+        color: var(--h-text-muted);
+        font-size: 13px;
         pointer-events: none;
         z-index: 1;
     }
 
-    .history-search-wrap .form-control {
-        padding-left: 38px !important;
+    .fp-search-input {
+        width: 100%;
+        background: var(--h-bg-elevated);
+        border: 1px solid var(--h-border);
+        border-radius: var(--h-radius-md);
+        color: var(--h-text-primary);
+        font-family: var(--h-font);
+        font-size: 13.5px;
+        padding: 9px 14px 9px 38px;
+        outline: none;
+        transition: border-color var(--h-transition), box-shadow var(--h-transition);
     }
 
-    .history-status-select {
-        min-width: 148px;
+    .fp-search-input::placeholder {
+        color: var(--h-text-muted);
+    }
+
+    .fp-search-input:focus {
+        border-color: var(--h-border-hover);
+        box-shadow: var(--h-glow-sm);
+    }
+
+    .fp-status-select {
+        min-width: 150px;
+        background: var(--h-bg-elevated);
+        border: 1px solid var(--h-border);
+        border-radius: var(--h-radius-md);
+        color: var(--h-text-secondary);
+        font-family: var(--h-font);
+        font-size: 13.5px;
+        padding: 9px 14px;
+        outline: none;
+        cursor: pointer;
+        transition: border-color var(--h-transition), box-shadow var(--h-transition);
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 34px;
+    }
+
+    .fp-status-select:focus {
+        border-color: var(--h-border-hover);
+        box-shadow: var(--h-glow-sm);
+    }
+
+    .fp-status-select option {
+        background: #1e1e2a;
+        color: var(--h-text-primary);
     }
 
     .btn-export-csv {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        padding: 8px 16px;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-border-medium);
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: var(--h-radius-md);
+        border: 1px solid var(--h-border);
         background: transparent;
-        color: var(--color-text-secondary);
+        color: var(--h-text-secondary);
+        font-family: var(--h-font);
         font-size: 13px;
         font-weight: 500;
         text-decoration: none;
         white-space: nowrap;
-        transition: all var(--transition-fast);
+        cursor: pointer;
+        transition: all var(--h-transition);
         line-height: 1.4;
     }
 
+    .btn-export-csv i {
+        font-size: 13px;
+        color: var(--h-accent-indigo);
+        opacity: 0.85;
+        transition: opacity var(--h-transition);
+    }
+
     .btn-export-csv:hover {
-        background: rgba(148, 163, 184, 0.08);
-        border-color: rgba(148, 163, 184, 0.28);
-        color: var(--color-text-primary);
+        border-color: var(--h-border-hover);
+        background: rgba(124,58,237,0.08);
+        color: var(--h-text-primary);
+        box-shadow: var(--h-glow-sm);
         text-decoration: none;
     }
 
-    .btn-export-csv i {
-        font-size: 14px;
-        color: var(--color-accent-light);
-        opacity: 0.85;
+    .btn-export-csv:hover i {
+        opacity: 1;
+        color: #a78bfa;
     }
 
-    /* ── Table enhancements ────────────────────────────────── */
-    .history-table-card {
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
+    /* ── Table card ─────────────────────────────────────────── */
+    .table-card {
+        background: var(--h-bg-card);
+        border: 1px solid var(--h-border);
+        border-radius: var(--h-radius-lg);
         overflow: hidden;
-        box-shadow: var(--shadow-sm);
-        animation: fadeInUp 0.40s ease 0.05s both;
+        animation: hFadeUp 0.38s ease 0.06s both;
     }
 
-    .history-table-scroll {
+    .table-scroll {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
 
-    .history-table {
-        margin: 0;
+    .h-table {
         width: 100%;
+        margin: 0;
         border-collapse: separate;
         border-spacing: 0;
-        color: var(--color-text-primary);
+        font-family: var(--h-font);
+        color: var(--h-text-primary);
     }
 
     /* Sticky header */
-    .history-table thead {
+    .h-table thead {
         position: sticky;
         top: 0;
         z-index: 10;
     }
 
-    .history-table thead th {
-        background: rgba(0, 0, 0, 0.26);
-        border-bottom: 1px solid var(--color-border);
-        font-size: 11px;
-        font-weight: 600;
+    .h-table thead th {
+        background: rgba(9,9,11,0.72);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--h-border);
+        font-size: 10.5px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1.2px;
-        color: var(--color-text-muted);
+        letter-spacing: 1.3px;
+        color: var(--h-text-muted);
         padding: 13px 16px;
         white-space: nowrap;
         vertical-align: middle;
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
     }
 
-    .history-table tbody tr {
-        border-bottom: 1px solid var(--color-border-light);
-        transition: background var(--transition-fast);
+    .h-table tbody tr {
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        transition: background var(--h-transition);
     }
 
-    .history-table tbody tr:last-child {
+    .h-table tbody tr:last-child {
         border-bottom: none;
     }
 
-    /* Alternating subtle row tint */
-    .history-table tbody tr:nth-child(even) {
-        background: rgba(255, 255, 255, 0.012);
+    .h-table tbody tr:nth-child(even) {
+        background: rgba(255,255,255,0.012);
     }
 
-    .history-table tbody tr:hover {
-        background: var(--color-bg-card-hover);
+    .h-table tbody tr:hover {
+        background: rgba(124,58,237,0.06);
     }
 
-    .history-table tbody td {
+    .h-table tbody tr:hover td {
+        border-bottom-color: transparent;
+    }
+
+    .h-table tbody td {
         padding: 12px 16px;
         vertical-align: middle;
         border: none;
         font-size: 13.5px;
-        color: var(--color-text-primary);
+        color: var(--h-text-primary);
     }
 
-    /* ── Company avatar variants ───────────────────────────── */
-    .company-avatar.av-a, .company-avatar.av-b { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-    .company-avatar.av-c, .company-avatar.av-d { background: linear-gradient(135deg, #22c55e, #10b981); }
-    .company-avatar.av-e, .company-avatar.av-f { background: linear-gradient(135deg, #f59e0b, #f97316); }
-    .company-avatar.av-g, .company-avatar.av-h { background: linear-gradient(135deg, #3b82f6, #6366f1); }
-    .company-avatar.av-i, .company-avatar.av-j { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
-    .company-avatar.av-k, .company-avatar.av-l { background: linear-gradient(135deg, #14b8a6, #06b6d4); }
-    .company-avatar.av-m, .company-avatar.av-n { background: linear-gradient(135deg, #a855f7, #6366f1); }
-    .company-avatar.av-o, .company-avatar.av-p { background: linear-gradient(135deg, #f43f5e, #ec4899); }
-    .company-avatar.av-q, .company-avatar.av-r { background: linear-gradient(135deg, #0ea5e9, #3b82f6); }
-    .company-avatar.av-s, .company-avatar.av-t { background: linear-gradient(135deg, #84cc16, #22c55e); }
-    .company-avatar.av-u, .company-avatar.av-v { background: linear-gradient(135deg, #f97316, #f59e0b); }
-    .company-avatar.av-w, .company-avatar.av-x { background: linear-gradient(135deg, #8b5cf6, #a855f7); }
-    .company-avatar.av-y, .company-avatar.av-z { background: linear-gradient(135deg, #06b6d4, #14b8a6); }
-    .company-avatar.av-default               { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+    /* ── Company avatar ─────────────────────────────────────── */
+    .company-cell {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 
-    /* ── Recipient email mono style ────────────────────────── */
+    .company-avatar {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        border-radius: var(--h-radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.3px;
+        text-transform: uppercase;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+
+    /* Avatar gradient variants */
+    .av-a, .av-b { background: var(--h-grad-primary); }
+    .av-c, .av-d { background: linear-gradient(135deg, #22c55e, #10b981); }
+    .av-e, .av-f { background: linear-gradient(135deg, #f59e0b, #f97316); }
+    .av-g, .av-h { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+    .av-i, .av-j { background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+    .av-k, .av-l { background: linear-gradient(135deg, #14b8a6, #06b6d4); }
+    .av-m, .av-n { background: linear-gradient(135deg, #a855f7, #6366f1); }
+    .av-o, .av-p { background: var(--h-grad-hot); }
+    .av-q, .av-r { background: linear-gradient(135deg, #0ea5e9, #3b82f6); }
+    .av-s, .av-t { background: linear-gradient(135deg, #84cc16, #22c55e); }
+    .av-u, .av-v { background: linear-gradient(135deg, #f97316, #f59e0b); }
+    .av-w, .av-x { background: linear-gradient(135deg, #8b5cf6, #a855f7); }
+    .av-y, .av-z { background: linear-gradient(135deg, #06b6d4, #14b8a6); }
+    .av-default  { background: var(--h-grad-primary); }
+
+    .company-name {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--h-text-primary);
+        white-space: nowrap;
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ── Role ───────────────────────────────────────────────── */
+    .role-text {
+        font-size: 13px;
+        color: var(--h-text-secondary);
+        white-space: nowrap;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        vertical-align: bottom;
+    }
+
+    /* ── Recipient email ────────────────────────────────────── */
     .recipient-email {
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
         font-size: 12px;
-        color: var(--color-accent-light);
+        color: #a78bfa;
         max-width: 180px;
         display: inline-block;
         white-space: nowrap;
@@ -180,10 +315,10 @@
         letter-spacing: -0.2px;
     }
 
-    /* ── Subject truncation ─────────────────────────────────── */
-    .subject-cell {
+    /* ── Subject ────────────────────────────────────────────── */
+    .subject-text {
         font-size: 13px;
-        color: var(--color-text-secondary);
+        color: var(--h-text-secondary);
         max-width: 240px;
         display: inline-block;
         white-space: nowrap;
@@ -192,24 +327,61 @@
         vertical-align: bottom;
     }
 
+    /* ── Status badges ──────────────────────────────────────── */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 11px;
+        border-radius: var(--h-radius-full);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    .status-sent {
+        background: var(--h-success-bg);
+        color: #4ade80;
+        border: 1px solid rgba(34,197,94,0.22);
+    }
+
+    .status-failed {
+        background: var(--h-danger-bg);
+        color: #f87171;
+        border: 1px solid rgba(239,68,68,0.22);
+    }
+
+    .status-approved {
+        background: rgba(99,102,241,0.14);
+        color: #a5b4fc;
+        border: 1px solid rgba(99,102,241,0.26);
+    }
+
+    .status-draft {
+        background: rgba(82,82,91,0.22);
+        color: var(--h-text-secondary);
+        border: 1px solid rgba(82,82,91,0.30);
+    }
+
     /* ── Opened badge ───────────────────────────────────────── */
     .opened-badge {
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        padding: 4px 9px;
-        border-radius: var(--radius-full);
+        padding: 4px 10px;
+        border-radius: var(--h-radius-full);
         font-size: 11px;
         font-weight: 600;
-        background: rgba(34, 197, 94, 0.13);
+        background: var(--h-success-bg);
         color: #4ade80;
-        border: 1px solid rgba(34, 197, 94, 0.22);
+        border: 1px solid rgba(34,197,94,0.22);
         white-space: nowrap;
     }
 
     .not-opened-text {
         font-size: 12px;
-        color: var(--color-text-muted);
+        color: var(--h-text-muted);
         font-style: italic;
     }
 
@@ -218,110 +390,102 @@
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        padding: 4px 9px;
-        border-radius: var(--radius-full);
+        padding: 4px 10px;
+        border-radius: var(--h-radius-full);
         font-size: 11px;
         font-weight: 600;
         white-space: nowrap;
     }
 
     .reply-interview {
-        background: rgba(99, 102, 241, 0.18);
+        background: rgba(99,102,241,0.16);
         color: #a5b4fc;
-        border: 1px solid rgba(99, 102, 241, 0.28);
+        border: 1px solid rgba(99,102,241,0.28);
     }
 
     .reply-rejected {
-        background: rgba(239, 68, 68, 0.13);
+        background: var(--h-danger-bg);
         color: #f87171;
-        border: 1px solid rgba(239, 68, 68, 0.22);
+        border: 1px solid rgba(239,68,68,0.22);
     }
 
     .reply-interested {
-        background: rgba(251, 191, 36, 0.13);
+        background: var(--h-warning-bg);
         color: #fbbf24;
-        border: 1px solid rgba(251, 191, 36, 0.22);
+        border: 1px solid rgba(245,158,11,0.22);
     }
 
     .reply-generic {
-        background: rgba(148, 163, 184, 0.12);
-        color: #94a3b8;
-        border: 1px solid rgba(148, 163, 184, 0.20);
-    }
-
-    /* ── Action icon buttons ────────────────────────────────── */
-    .btn-icon-view {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: var(--radius-md);
-        background: var(--color-accent-bg);
-        color: var(--color-accent-light);
-        border: 1px solid rgba(99, 102, 241, 0.18);
-        transition: all var(--transition-fast);
-        cursor: pointer;
-        font-size: 14px;
-        text-decoration: none;
-        line-height: 1;
-    }
-
-    .btn-icon-view:hover {
-        background: var(--color-accent);
-        color: #fff;
-        border-color: var(--color-accent);
-        box-shadow: var(--shadow-glow-sm);
-        transform: translateY(-1px);
-        text-decoration: none;
-    }
-
-    .btn-icon-retry {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: var(--radius-md);
-        background: rgba(245, 158, 11, 0.12);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.22);
-        transition: all var(--transition-fast);
-        cursor: pointer;
-        font-size: 14px;
-        line-height: 1;
-        margin-left: 6px;
-    }
-
-    .btn-icon-retry:hover {
-        background: var(--color-warning);
-        color: #0a0f1e;
-        border-color: var(--color-warning);
-        transform: translateY(-1px);
-        box-shadow: 0 0 12px rgba(245, 158, 11, 0.30);
-    }
-
-    .actions-cell {
-        display: flex;
-        align-items: center;
-        white-space: nowrap;
+        background: rgba(82,82,91,0.20);
+        color: var(--h-text-secondary);
+        border: 1px solid rgba(82,82,91,0.28);
     }
 
     /* ── Sent date ──────────────────────────────────────────── */
     .sent-date-text {
         font-size: 12.5px;
-        color: var(--color-text-secondary);
+        color: var(--h-text-secondary);
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
     }
 
+    /* ── Action buttons ─────────────────────────────────────── */
+    .actions-cell {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--h-radius-md);
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all var(--h-transition);
+        line-height: 1;
+        border: 1px solid transparent;
+    }
+
+    .btn-icon-view {
+        background: rgba(99,102,241,0.12);
+        color: #a78bfa;
+        border-color: rgba(99,102,241,0.2);
+    }
+
+    .btn-icon-view:hover {
+        background: var(--h-grad-primary);
+        color: #fff;
+        border-color: transparent;
+        box-shadow: var(--h-glow-sm);
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+
+    .btn-icon-retry {
+        background: var(--h-warning-bg);
+        color: #fbbf24;
+        border-color: rgba(245,158,11,0.22);
+    }
+
+    .btn-icon-retry:hover {
+        background: var(--h-warning);
+        color: #0a0f1e;
+        border-color: transparent;
+        box-shadow: 0 0 12px rgba(245,158,11,0.32);
+        transform: translateY(-1px);
+    }
+
     /* ── Empty state ────────────────────────────────────────── */
     .history-empty {
-        padding: 72px 24px;
+        padding: 80px 24px;
         text-align: center;
         display: flex;
         flex-direction: column;
@@ -329,54 +493,72 @@
         justify-content: center;
     }
 
-    .history-empty-icon {
-        font-size: 56px;
-        margin-bottom: 20px;
-        display: block;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    .history-empty-icon-wrap {
+        width: 72px;
+        height: 72px;
+        border-radius: var(--h-radius-xl);
+        background: rgba(124,58,237,0.1);
+        border: 1px solid rgba(124,58,237,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 22px;
+        animation: hPulseBounce 3s ease-in-out infinite;
+    }
+
+    .history-empty-icon-wrap i {
+        font-size: 30px;
+        background: var(--h-grad-primary);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        opacity: 0.55;
-        animation: pulseBounce 3s ease-in-out infinite;
     }
 
     .history-empty h3 {
+        font-family: var(--h-font);
         font-size: 18px;
-        font-weight: 600;
-        color: var(--color-text-primary);
-        margin-bottom: 8px;
-        letter-spacing: -0.3px;
+        font-weight: 700;
+        color: var(--h-text-primary);
+        margin: 0 0 10px;
+        letter-spacing: -0.4px;
     }
 
     .history-empty p {
-        color: var(--color-text-secondary);
+        font-family: var(--h-font);
+        color: var(--h-text-secondary);
         font-size: 14px;
         max-width: 340px;
         line-height: 1.65;
         margin: 0 auto;
     }
 
-    /* ── Role text in table ─────────────────────────────────── */
-    .role-cell {
-        font-size: 13px;
-        color: var(--color-text-secondary);
-        white-space: nowrap;
-        max-width: 160px;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* ── Muted dash ─────────────────────────────────────────── */
+    .h-dash {
+        color: var(--h-text-muted);
+        font-size: 14px;
     }
 
-    /* ── Mobile stacking ────────────────────────────────────── */
+    /* ── Animations ─────────────────────────────────────────── */
+    @@keyframes hFadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @@keyframes hPulseBounce {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50%       { transform: translateY(-5px) scale(1.04); }
+    }
+
+    /* ── Mobile ─────────────────────────────────────────────── */
     @@media (max-width: 991.98px) {
-        .history-filter-form {
+        .filter-panel form {
             flex-direction: column;
             align-items: stretch;
         }
-        .history-search-wrap {
+        .fp-search-wrap {
             min-width: 100%;
         }
-        .history-status-select {
+        .fp-status-select {
             width: 100%;
             min-width: 0;
         }
@@ -387,22 +569,22 @@
     }
 </style>
 
-<!-- ── Filter Bar ─────────────────────────────────────────── -->
-<div class="history-filter-bar">
-    <form method="get" class="history-filter-form" id="filterForm">
+<!-- ── Filter Panel ────────────────────────────────────────── -->
+<div class="filter-panel">
+    <form method="get" id="filterForm">
 
-        <div class="history-search-wrap">
-            <i class="bi bi-search search-icon"></i>
+        <div class="fp-search-wrap">
+            <i class="bi bi-search fp-search-icon"></i>
             <input type="text"
                    name="search"
                    id="searchInput"
-                   class="form-control"
+                   class="fp-search-input"
                    placeholder="Search by company, role, email..."
                    value="@ViewBag.Search" />
         </div>
 
         <select name="status"
-                class="form-select history-status-select"
+                class="fp-status-select"
                 onchange="document.getElementById('filterForm').submit()">
             <option value="">All Statuses</option>
             <option value="sent"     selected="@(ViewBag.Status == "sent"     ? "selected" : null)">Sent</option>
@@ -419,23 +601,23 @@
     </form>
 </div>
 
-<!-- ── Table Card ────────────────────────────────────────────── -->
-<div class="history-table-card">
+<!-- ── Table Card ─────────────────────────────────────────── -->
+<div class="table-card">
 
     @if (Model.Count == 0)
     {
         <div class="history-empty">
-            <span class="history-empty-icon">
+            <div class="history-empty-icon-wrap">
                 <i class="bi bi-robot"></i>
-            </span>
+            </div>
             <h3>No emails found</h3>
             <p>No emails match your current filters. Process a job post to generate your first application email.</p>
         </div>
     }
     else
     {
-        <div class="history-table-scroll">
-            <table class="history-table">
+        <div class="table-scroll">
+            <table class="h-table">
                 <thead>
                     <tr>
                         <th>Company</th>
@@ -463,10 +645,8 @@
                             <!-- Company -->
                             <td>
                                 <div class="company-cell">
-                                    <div class="company-avatar @avatarClass">
-                                        @firstLetter
-                                    </div>
-                                    <span class="company-name">
+                                    <div class="company-avatar @avatarClass">@firstLetter</div>
+                                    <span class="company-name" title="@(email.JobPost?.CompanyName ?? "")">
                                         @(email.JobPost?.CompanyName ?? "N/A")
                                     </span>
                                 </div>
@@ -474,7 +654,7 @@
 
                             <!-- Role -->
                             <td>
-                                <span class="role-cell" title="@(email.JobPost?.Role ?? "")">
+                                <span class="role-text" title="@(email.JobPost?.Role ?? "")">
                                     @(email.JobPost?.Role ?? "N/A")
                                 </span>
                             </td>
@@ -488,7 +668,7 @@
 
                             <!-- Subject -->
                             <td>
-                                <span class="subject-cell" title="@email.Subject">
+                                <span class="subject-text" title="@email.Subject">
                                     @(email.Subject.Length > 45 ? email.Subject[..45] + "…" : email.Subject)
                                 </span>
                             </td>
@@ -515,7 +695,7 @@
                                 }
                                 else
                                 {
-                                    <span class="status-badge status-pending">
+                                    <span class="status-badge status-draft">
                                         <i class="bi bi-hourglass-split"></i> Draft
                                     </span>
                                 }
@@ -536,7 +716,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted">—</span>
+                                    <span class="h-dash">—</span>
                                 }
                             </td>
 
@@ -545,10 +725,10 @@
                                 @if (email.RepliedAt.HasValue)
                                 {
                                     var (replyCls, replyIcon, replyLabel) = email.ReplyClassification switch {
-                                        "interview"  => ("reply-interview",  "bi-telephone-fill",    "Interview"),
-                                        "rejected"   => ("reply-rejected",   "bi-x-circle-fill",     "Rejected"),
-                                        "interested" => ("reply-interested", "bi-star-fill",         "Interested"),
-                                        _            => ("reply-generic",    "bi-envelope-open-fill","Replied")
+                                        "interview"  => ("reply-interview",  "bi-telephone-fill",     "Interview"),
+                                        "rejected"   => ("reply-rejected",   "bi-x-circle-fill",      "Rejected"),
+                                        "interested" => ("reply-interested", "bi-star-fill",          "Interested"),
+                                        _            => ("reply-generic",    "bi-envelope-open-fill", "Replied")
                                     };
                                     <span class="reply-badge @replyCls" title="@email.RepliedAt?.ToString("f")">
                                         <i class="bi @replyIcon"></i>
@@ -557,7 +737,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted">—</span>
+                                    <span class="h-dash">—</span>
                                 }
                             </td>
 
@@ -572,7 +752,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted">—</span>
+                                    <span class="h-dash">—</span>
                                 }
                             </td>
 
@@ -580,7 +760,7 @@
                             <td>
                                 <div class="actions-cell">
                                     <a href="@Url.Action("Preview", new { id = email.JobPostId })"
-                                       class="btn-icon-view"
+                                       class="btn-icon btn-icon-view"
                                        title="View email">
                                         <i class="bi bi-eye"></i>
                                     </a>
@@ -590,10 +770,9 @@
                                         <form method="post"
                                               asp-action="Retry"
                                               asp-route-id="@email.JobPostId"
-                                              class="d-inline"
-                                              style="margin:0;">
+                                              style="margin:0;display:contents;">
                                             <button type="submit"
-                                                    class="btn-icon-retry"
+                                                    class="btn-icon btn-icon-retry"
                                                     title="Retry sending">
                                                 <i class="bi bi-arrow-clockwise"></i>
                                             </button>

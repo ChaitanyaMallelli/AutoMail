@@ -32,4 +32,8 @@ public class ScoutedJob
     // Which board this job was scouted from
     [MaxLength(50)]
     public string Board { get; set; } = "LinkedIn";
+
+    // Board-specific job ID extracted from the URL (e.g. LinkedIn numeric ID)
+    [MaxLength(100)]
+    public string? JobId { get; set; }
 }

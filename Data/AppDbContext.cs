@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
     public DbSet<Resume> Resumes => Set<Resume>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<ScoutedJob> ScoutedJobs => Set<ScoutedJob>();
+    public DbSet<AutoApplyLog> AutoApplyLogs => Set<AutoApplyLog>();
+    public DbSet<UserJobPreferences> UserJobPreferences => Set<UserJobPreferences>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +49,23 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Resume>(entity =>
         {
             entity.HasIndex(e => e.IsActive);
+        });
+
+        // AutoApplyLog configuration
+        modelBuilder.Entity<AutoApplyLog>(entity =>
+        {
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.HasIndex(e => e.JobUrl);
+            entity.HasIndex(e => e.JobId);
+            entity.HasIndex(e => new { e.CompanyName, e.JobTitle });
+            entity.HasIndex(e => e.AppliedAt);
+            entity.HasIndex(e => e.Status);
+        });
+
+        // UserJobPreferences — single row (Id=1)
+        modelBuilder.Entity<UserJobPreferences>(entity =>
+        {
+            entity.HasKey(e => e.Id);
         });
 
         // Seed default user profile

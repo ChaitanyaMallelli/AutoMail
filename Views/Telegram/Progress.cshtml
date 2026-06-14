@@ -3,71 +3,390 @@
     ViewData["Subtitle"] = "Real-time pipeline monitoring for your Telegram bot";
 }
 
+<style>
+    /* ── Design tokens ── */
+    :root {
+        --pr-bg-card:        #16161f;
+        --pr-border:         rgba(255,255,255,0.07);
+        --pr-border-hover:   rgba(124,58,237,0.35);
+        --pr-accent-violet:  #7c3aed;
+        --pr-accent-indigo:  #6366f1;
+        --pr-accent-pink:    #ec4899;
+        --pr-grad-primary:   linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+        --pr-grad-hot:       linear-gradient(135deg, #ec4899 0%, #7c3aed 100%);
+        --pr-glow-violet:    0 0 20px rgba(124,58,237,0.35);
+        --pr-glow-sm:        0 0 12px rgba(124,58,237,0.2);
+        --pr-text-primary:   #f4f4f5;
+        --pr-text-secondary: #a1a1aa;
+        --pr-text-muted:     #52525b;
+        --pr-success:        #22c55e;
+        --pr-success-bg:     rgba(34,197,94,0.12);
+        --pr-warning:        #f59e0b;
+        --pr-warning-bg:     rgba(245,158,11,0.12);
+        --pr-danger:         #ef4444;
+        --pr-danger-bg:      rgba(239,68,68,0.12);
+        --pr-info:           #3b82f6;
+        --pr-info-bg:        rgba(59,130,246,0.12);
+    }
+
+    /* ── Pipeline card ── */
+    .pr-card {
+        background: var(--pr-bg-card);
+        border: 1px solid var(--pr-border);
+        border-radius: 20px;
+        padding: 32px;
+        position: relative;
+        overflow: hidden;
+        min-height: 540px;
+        box-shadow: 0 8px 40px rgba(0,0,0,.5);
+    }
+
+    /* Gradient top accent bar */
+    .pr-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 2px;
+        background: var(--pr-grad-primary);
+        border-radius: 20px 20px 0 0;
+    }
+
+    /* ── Ambient orbs ── */
+    .pr-orb {
+        position: absolute; border-radius: 50%; pointer-events: none;
+    }
+    .pr-orb-1 { top: -80px; left: -80px; width: 260px; height: 260px; background: rgba(99,102,241,.1); filter: blur(70px); }
+    .pr-orb-2 { bottom: -80px; right: -80px; width: 240px; height: 240px; background: rgba(168,85,247,.08); filter: blur(70px); }
+
+    /* Dot-grid texture */
+    .pr-dot-grid {
+        position: absolute; inset: 0; opacity: .025; pointer-events: none;
+        background-image: radial-gradient(rgba(99,102,241,.8) 1px, transparent 1px);
+        background-size: 22px 22px;
+    }
+
+    /* ── Card header ── */
+    .pr-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--pr-border);
+        margin-bottom: 28px;
+        position: relative;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .pr-header-icon {
+        width: 36px; height: 36px; min-width: 36px;
+        border-radius: 10px;
+        background: rgba(99,102,241,.1);
+        border: 1px solid rgba(99,102,241,.25);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 17px; color: #a5b4fc;
+    }
+
+    .pr-header-title {
+        font-size: 15px; font-weight: 800;
+        letter-spacing: -.3px; color: var(--pr-text-primary);
+        margin: 0;
+    }
+    .pr-header-sub {
+        font-size: 11px; color: var(--pr-text-muted); margin-top: 2px;
+    }
+
+    /* ── State badge ── */
+    .pr-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 20px;
+        font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    }
+    .pr-badge-listening { background: var(--pr-warning-bg); color: var(--pr-warning); border: 1px solid rgba(245,158,11,.25); }
+    .pr-badge-running   { background: rgba(99,102,241,.12); color: #a5b4fc;           border: 1px solid rgba(99,102,241,.3); }
+    .pr-badge-done      { background: var(--pr-success-bg); color: var(--pr-success); border: 1px solid rgba(34,197,94,.25); }
+    .pr-badge-failed    { background: var(--pr-danger-bg);  color: var(--pr-danger);  border: 1px solid rgba(239,68,68,.25); }
+
+    /* ── Empty state ── */
+    .pr-empty {
+        display: flex; flex-direction: column;
+        align-items: center; text-align: center;
+        padding: 48px 20px;
+        position: relative;
+    }
+
+    /* Animated signal rings */
+    .pr-signal {
+        position: relative; width: 90px; height: 90px; margin: 0 auto 28px;
+    }
+    .pr-signal-ring {
+        position: absolute; inset: 0; border-radius: 50%;
+        border: 2px solid rgba(124,58,237,.25);
+        animation: prSignalExpand 2.4s ease-out infinite;
+    }
+    .pr-signal-ring:nth-child(2) { animation-delay: .8s; }
+    .pr-signal-ring:nth-child(3) { animation-delay: 1.6s; }
+    @@keyframes prSignalExpand {
+        0%   { transform: scale(.5); opacity: .9; }
+        100% { transform: scale(1.5); opacity: 0; }
+    }
+    .pr-signal-core {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 36px; color: #a5b4fc;
+        filter: drop-shadow(0 0 14px rgba(124,58,237,.5));
+    }
+
+    .pr-empty-title {
+        font-size: 20px; font-weight: 800;
+        color: var(--pr-text-primary); margin-bottom: 8px;
+    }
+    .pr-empty-sub {
+        font-size: 14px; color: var(--pr-text-secondary);
+        max-width: 400px; line-height: 1.7; margin-bottom: 24px;
+    }
+
+    /* ── Launch button ── */
+    .pr-btn-launch {
+        background: var(--pr-grad-primary);
+        color: #fff; border: none; border-radius: 40px;
+        padding: 11px 26px; font-size: 14px; font-weight: 700;
+        text-decoration: none; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 7px;
+        transition: box-shadow .2s, transform .15s;
+    }
+    .pr-btn-launch:hover {
+        box-shadow: var(--pr-glow-violet);
+        transform: translateY(-1px);
+        color: #fff;
+    }
+
+    /* ── Info boxes (chat/job header) ── */
+    .pr-info-box {
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: rgba(99,102,241,.06);
+        border: 1px solid rgba(99,102,241,.18);
+        height: 100%;
+        transition: border-color .2s;
+    }
+    .pr-info-box:hover { border-color: var(--pr-border-hover); }
+    .pr-info-label {
+        font-size: 10px; font-weight: 700; letter-spacing: .07em;
+        text-transform: uppercase; color: var(--pr-text-muted);
+        display: block; margin-bottom: 6px;
+    }
+    .pr-info-value {
+        font-size: 16px; font-weight: 800; color: var(--pr-text-primary);
+    }
+
+    /* ── Pipeline stepper ── */
+    .pipeline-stepper {
+        display: flex; flex-direction: column; gap: 0;
+        position: relative;
+    }
+
+    /* Vertical track line */
+    .pipeline-stepper::before {
+        content: '';
+        position: absolute;
+        left: 17px; top: 20px; bottom: 20px; width: 2px;
+        background: linear-gradient(to bottom, rgba(124,58,237,.4), rgba(99,102,241,.1));
+        border-radius: 2px;
+    }
+
+    /* ── Step card ── */
+    .step-card {
+        display: flex; align-items: flex-start; gap: 16px;
+        padding: 14px 16px 14px 0;
+        border-radius: 12px;
+        margin-left: 0;
+        position: relative;
+        transition: background .2s, border-color .2s;
+    }
+
+    /* ── Step dot container ── */
+    .step-dot {
+        width: 36px; height: 36px; min-width: 36px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px;
+        position: relative; z-index: 1;
+        flex-shrink: 0;
+        transition: background .3s, box-shadow .3s;
+    }
+
+    /* ── Step text ── */
+    .step-header {
+        font-size: 13px; font-weight: 700;
+        color: var(--pr-text-muted);
+        margin-bottom: 3px;
+        transition: color .3s;
+    }
+    .step-subheader {
+        font-size: 12px; color: var(--pr-text-muted);
+        line-height: 1.55;
+        transition: color .3s;
+    }
+
+    /* ── STATE: inactive ── */
+    .step-inactive .step-dot {
+        background: rgba(255,255,255,.04);
+        border: 1.5px solid rgba(255,255,255,.1);
+        color: var(--pr-text-muted);
+    }
+    .step-inactive .step-header { color: var(--pr-text-muted); }
+    .step-inactive .step-subheader { color: #3f3f46; }
+
+    /* ── STATE: active-now (running) ── */
+    .step-active-now .step-dot {
+        background: var(--pr-grad-primary);
+        border: none;
+        color: #fff;
+        box-shadow: var(--pr-glow-violet);
+        animation: prStepPulse 1.8s ease-in-out infinite;
+    }
+    .step-active-now .step-header { color: #a5b4fc; }
+    .step-active-now .step-subheader { color: var(--pr-text-secondary); }
+    @@keyframes prStepPulse {
+        0%,100% { box-shadow: 0 0 10px rgba(124,58,237,.4); }
+        50%      { box-shadow: 0 0 22px rgba(124,58,237,.7); }
+    }
+
+    /* ── STATE: completed ── */
+    .step-completed .step-dot {
+        background: var(--pr-success-bg);
+        border: 1.5px solid rgba(34,197,94,.4);
+        color: var(--pr-success);
+    }
+    .step-completed .step-header { color: var(--pr-text-secondary); }
+    .step-completed .step-subheader { color: var(--pr-text-secondary); }
+
+    /* ── STATE: failed-now ── */
+    .step-failed-now .step-dot {
+        background: var(--pr-danger-bg);
+        border: 1.5px solid rgba(239,68,68,.4);
+        color: var(--pr-danger);
+    }
+    .step-failed-now .step-header { color: #fca5a5; }
+    .step-failed-now .step-subheader { color: #f87171; }
+
+    /* ── Web approval alert ── */
+    .pr-web-alert {
+        margin-top: 24px;
+        padding: 24px;
+        border-radius: 14px;
+        text-align: center;
+        background: var(--pr-info-bg);
+        border: 1px solid rgba(59,130,246,.3);
+        position: relative;
+        overflow: hidden;
+    }
+    .pr-web-alert::before {
+        content: '';
+        position: absolute; inset: 0 0 auto 0; height: 2px;
+        background: linear-gradient(90deg, #3b82f6, #7c3aed);
+        border-radius: 14px 14px 0 0;
+    }
+    .pr-web-alert-icon {
+        font-size: 30px; color: #93c5fd; margin-bottom: 10px;
+        filter: drop-shadow(0 0 10px rgba(59,130,246,.5));
+        animation: prEmailBounce 2s ease-in-out infinite;
+    }
+    @@keyframes prEmailBounce {
+        0%,100% { transform: translateY(0); }
+        50%      { transform: translateY(-4px); }
+    }
+    .pr-web-alert-title {
+        font-size: 17px; font-weight: 800;
+        color: var(--pr-text-primary); margin-bottom: 6px;
+    }
+    .pr-web-alert-sub {
+        font-size: 13px; color: var(--pr-text-secondary);
+        max-width: 360px; margin: 0 auto 18px; line-height: 1.65;
+    }
+    .pr-btn-review {
+        background: linear-gradient(135deg, #3b82f6, #7c3aed);
+        color: #fff; border: none; border-radius: 40px;
+        padding: 11px 26px; font-size: 14px; font-weight: 700;
+        text-decoration: none; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 7px;
+        transition: box-shadow .2s, transform .15s;
+    }
+    .pr-btn-review:hover {
+        box-shadow: 0 0 20px rgba(59,130,246,.4);
+        transform: translateY(-1px);
+        color: #fff;
+    }
+
+    /* ── accent-light link color ── */
+    .text-accent-light { color: #a5b4fc !important; }
+    .text-accent-light:hover { color: #c4b5fd !important; }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-xl-8 col-lg-10">
 
-        <!-- Pipeline Card -->
-        <div class="detail-card" style="position: relative; overflow: hidden; min-height: 540px; background: rgba(14, 20, 38, 0.80); backdrop-filter: blur(16px); box-shadow: var(--shadow-lg); border-color: rgba(255, 255, 255, 0.07);">
+        <!-- ── Pipeline Card ── -->
+        <div class="pr-card">
 
-            <!-- Ambient glow orbs (decorative) -->
-            <div style="position: absolute; top: -80px; left: -80px; width: 260px; height: 260px; background: rgba(99, 102, 241, 0.12); filter: blur(70px); border-radius: 50%; pointer-events: none;"></div>
-            <div style="position: absolute; bottom: -80px; right: -80px; width: 240px; height: 240px; background: rgba(168, 85, 247, 0.10); filter: blur(70px); border-radius: 50%; pointer-events: none;"></div>
-            <!-- Dot-grid texture -->
-            <div style="position: absolute; inset: 0; opacity: 0.025; background-image: radial-gradient(var(--color-accent) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none;"></div>
+            <!-- Decorative elements -->
+            <div class="pr-orb pr-orb-1"></div>
+            <div class="pr-orb pr-orb-2"></div>
+            <div class="pr-dot-grid"></div>
 
             <!-- Card Header -->
-            <div class="d-flex align-items-center justify-content-between mb-4 pb-3" style="border-bottom: 1px solid rgba(255, 255, 255, 0.07); position: relative;">
-                <div class="d-flex align-items-center gap-2">
-                    <div style="width: 34px; height: 34px; min-width: 34px; border-radius: 9px; background: var(--color-accent-bg); border: 1px solid rgba(99, 102, 241, 0.25); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--color-accent-light);">
+            <div class="pr-header">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="pr-header-icon">
                         <i class="bi bi-cpu-fill animate-pulse"></i>
                     </div>
                     <div>
-                        <h5 class="mb-0 fw-bold text-white" style="font-size: 15px; letter-spacing: -0.3px;">Telegram Automation Pipeline</h5>
-                        <span class="text-xs" style="color: var(--color-text-muted);">Polling every second &mdash; updates appear instantly</span>
+                        <h5 class="pr-header-title">Telegram Automation Pipeline</h5>
+                        <div class="pr-header-sub">Polling every second &mdash; updates appear instantly</div>
                     </div>
                 </div>
-                <span class="status-badge status-pending" id="pipelineState" style="font-weight: 600; letter-spacing: 0.4px;">
-                    <span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px; color: var(--color-warning);"></span>
+                <span class="pr-badge pr-badge-listening" id="pipelineState">
+                    <span class="spinner-grow spinner-grow-sm" role="status"
+                          style="width: 8px; height: 8px; color: var(--pr-warning);"></span>
                     Listening for Updates
                 </span>
             </div>
 
             <!-- ─────────── EMPTY STATE ─────────── -->
-            <div id="emptyTracker" class="empty-state py-5">
-                <!-- Animated signal icon -->
-                <div class="mb-4" style="position: relative; width: 88px; height: 88px; margin: 0 auto;">
-                    <div style="position: absolute; inset: 0; border-radius: 50%; background: var(--color-accent-bg); border: 1px solid rgba(99, 102, 241, 0.20); animation: pulseBounce 2.2s ease-in-out infinite;"></div>
-                    <div style="position: absolute; inset: 10px; border-radius: 50%; background: rgba(99, 102, 241, 0.07); animation: pulseBounce 2.2s ease-in-out infinite 0.3s;"></div>
-                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 36px; color: var(--color-accent-light); filter: drop-shadow(0 0 12px var(--color-accent-glow));">
+            <div id="emptyTracker" class="pr-empty">
+                <div class="pr-signal">
+                    <div class="pr-signal-ring"></div>
+                    <div class="pr-signal-ring"></div>
+                    <div class="pr-signal-ring"></div>
+                    <div class="pr-signal-core">
                         <i class="bi bi-rss-fill"></i>
                     </div>
                 </div>
 
-                <h4 class="text-white fw-bold mb-2">Awaiting Telegram Input</h4>
-                <p class="text-sm mx-auto mb-4" style="max-width: 420px; line-height: 1.7; color: var(--color-text-secondary);">
+                <div class="pr-empty-title">Awaiting Telegram Input</div>
+                <p class="pr-empty-sub">
                     Send a text job post, LinkedIn screenshot, or PDF description to your bot.
                     This dashboard will instantly intercept the message and track every pipeline step in real time.
                 </p>
-                <a href="https://t.me/your_bot" target="_blank" id="botLaunchLink" class="btn btn-glow rounded-pill px-4 text-sm fw-semibold">
-                    <i class="bi bi-telegram me-1"></i> Open Telegram Bot Chat
+                <a href="https://t.me/your_bot" target="_blank" id="botLaunchLink" class="pr-btn-launch">
+                    <i class="bi bi-telegram"></i> Open Telegram Bot Chat
                 </a>
             </div>
 
             <!-- ─────────── ACTIVE TRACKER ─────────── -->
             <div id="activeTracker" style="display: none;">
 
-                <!-- Header info bar: Sender + Job ID side by side -->
+                <!-- Header info bar -->
                 <div class="row g-3 mb-4">
                     <div class="col-sm-6">
-                        <div class="p-3 h-100 rounded-3" style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.14);">
-                            <span class="detail-label mb-1">Active Sender ID</span>
-                            <span class="d-block fw-bold text-white" style="font-size: 16px;" id="chatIdLabel">—</span>
+                        <div class="pr-info-box">
+                            <span class="pr-info-label">Active Sender ID</span>
+                            <span class="pr-info-value d-block" id="chatIdLabel">—</span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 h-100 rounded-3" style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.14);">
-                            <span class="detail-label mb-1">Job Status Card</span>
-                            <span class="d-block fw-bold text-white" style="font-size: 16px;" id="jobIdLabel">—</span>
+                        <div class="pr-info-box">
+                            <span class="pr-info-label">Job Status Card</span>
+                            <span class="pr-info-value d-block" id="jobIdLabel">—</span>
                         </div>
                     </div>
                 </div>
@@ -78,51 +397,62 @@
                     <!-- Step 1 -->
                     <div class="step-card step-inactive" id="stepCard1">
                         <div class="step-dot"><i class="bi bi-circle"></i></div>
-                        <div class="step-header">Step 1 &mdash; Input Detection</div>
-                        <div class="step-subheader" id="stepSub1">Waiting for file or text message from Telegram...</div>
+                        <div>
+                            <div class="step-header">Step 1 &mdash; Input Detection</div>
+                            <div class="step-subheader" id="stepSub1">Waiting for file or text message from Telegram...</div>
+                        </div>
                     </div>
 
                     <!-- Step 2 -->
                     <div class="step-card step-inactive" id="stepCard2">
                         <div class="step-dot"><i class="bi bi-circle"></i></div>
-                        <div class="step-header">Step 2 &mdash; Gemini AI Extraction</div>
-                        <div class="step-subheader" id="stepSub2">Extracting company, role, requirements, and recruiter details...</div>
+                        <div>
+                            <div class="step-header">Step 2 &mdash; Gemini AI Extraction</div>
+                            <div class="step-subheader" id="stepSub2">Extracting company, role, requirements, and recruiter details...</div>
+                        </div>
                     </div>
 
                     <!-- Step 3 -->
                     <div class="step-card step-inactive" id="stepCard3">
                         <div class="step-dot"><i class="bi bi-circle"></i></div>
-                        <div class="step-header">Step 3 &mdash; Skill Matching &amp; ATS Analysis</div>
-                        <div class="step-subheader" id="stepSub3">Calculating skill similarity and ATS optimisation score...</div>
+                        <div>
+                            <div class="step-header">Step 3 &mdash; Skill Matching &amp; ATS Analysis</div>
+                            <div class="step-subheader" id="stepSub3">Calculating skill similarity and ATS optimisation score...</div>
+                        </div>
                     </div>
 
                     <!-- Step 4 -->
                     <div class="step-card step-inactive" id="stepCard4">
                         <div class="step-dot"><i class="bi bi-circle"></i></div>
-                        <div class="step-header">Step 4 &mdash; AI Email Draft Synthesis</div>
-                        <div class="step-subheader" id="stepSub4">Composing personalised outreach draft matching your profile...</div>
+                        <div>
+                            <div class="step-header">Step 4 &mdash; AI Email Draft Synthesis</div>
+                            <div class="step-subheader" id="stepSub4">Composing personalised outreach draft matching your profile...</div>
+                        </div>
                     </div>
 
                     <!-- Step 5 -->
                     <div class="step-card step-inactive" id="stepCard5">
                         <div class="step-dot"><i class="bi bi-circle"></i></div>
-                        <div class="step-header">Step 5 &mdash; Interactive Approval Loop</div>
-                        <div class="step-subheader" id="stepSub5">Awaiting decision card confirmation on Telegram...</div>
+                        <div>
+                            <div class="step-header">Step 5 &mdash; Interactive Approval Loop</div>
+                            <div class="step-subheader" id="stepSub5">Awaiting decision card confirmation on Telegram...</div>
+                        </div>
                     </div>
 
                 </div>
+                <!-- / .pipeline-stepper -->
 
-                <!-- Web Approval Alert Banner (shown only for web-triggered applications) -->
-                <div id="webApprovalAlert" class="mt-4 p-4 rounded-3 text-center" style="display: none; background: rgba(59, 130, 246, 0.07); border: 1px solid rgba(59, 130, 246, 0.20);">
-                    <div class="mb-2" style="font-size: 28px; color: var(--color-info-light);">
-                        <i class="bi bi-envelope-check-fill animate-pulse"></i>
+                <!-- Web Approval Alert Banner -->
+                <div id="webApprovalAlert" class="pr-web-alert" style="display: none;">
+                    <div class="pr-web-alert-icon">
+                        <i class="bi bi-envelope-check-fill"></i>
                     </div>
-                    <h5 class="text-white fw-bold mb-1">Email Draft is Ready!</h5>
-                    <p class="text-sm mb-3" style="color: var(--color-text-secondary); max-width: 380px; margin-left: auto; margin-right: auto; line-height: 1.6;">
+                    <div class="pr-web-alert-title">Email Draft is Ready!</div>
+                    <p class="pr-web-alert-sub">
                         Since you applied through the dashboard, you can review, edit, and send the generated email right here.
                     </p>
-                    <a href="#" id="webApprovalLink" class="btn btn-glow rounded-pill px-4 fw-semibold">
-                        <i class="bi bi-eye-fill me-1"></i> Review &amp; Send Email
+                    <a href="#" id="webApprovalLink" class="pr-btn-review">
+                        <i class="bi bi-eye-fill"></i> Review &amp; Send Email
                     </a>
                 </div>
 
@@ -151,8 +481,8 @@
                     document.getElementById("activeTracker").style.display = "none";
 
                     const stateBadge = document.getElementById("pipelineState");
-                    stateBadge.className = "status-badge status-pending";
-                    stateBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px; color: var(--color-warning);"></span> Listening for Updates`;
+                    stateBadge.className = "pr-badge pr-badge-listening";
+                    stateBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px; color: var(--pr-warning);"></span> Listening for Updates`;
                     return;
                 }
 
@@ -279,13 +609,13 @@
                 // Update pipeline status badge
                 const stateBadge = document.getElementById("pipelineState");
                 if (isAnyFailed) {
-                    stateBadge.className = "status-badge status-failed px-3 py-1.5";
+                    stateBadge.className = "pr-badge pr-badge-failed px-3 py-1.5";
                     stateBadge.innerHTML = `<i class="bi bi-x-circle-fill"></i> Execution Failed`;
                 } else if (currentRunningStep > 0) {
-                    stateBadge.className = "status-badge status-ready px-3 py-1.5";
+                    stateBadge.className = "pr-badge pr-badge-running px-3 py-1.5";
                     stateBadge.innerHTML = `<span class="spinner-border spinner-border-sm me-1" style="width: 10px; height: 10px;"></span> Step ${currentRunningStep} in Progress`;
                 } else {
-                    stateBadge.className = "status-badge status-sent px-3 py-1.5";
+                    stateBadge.className = "pr-badge pr-badge-done px-3 py-1.5";
                     stateBadge.innerHTML = `<i class="bi bi-check-circle-fill"></i> Done`;
                 }
 

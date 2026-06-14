@@ -10,6 +10,7 @@ public class JobScoutManager
     private readonly GeminiService _gemini;
     private readonly AppDbContext _dbContext;
     private readonly TelegramService _telegram;
+    private readonly AutoApplyService _autoApply;
     private readonly ILogger<JobScoutManager> _logger;
 
     private readonly List<string> _searchKeywords = new()
@@ -26,12 +27,14 @@ public class JobScoutManager
         GeminiService gemini,
         AppDbContext dbContext,
         TelegramService telegram,
+        AutoApplyService autoApply,
         ILogger<JobScoutManager> logger)
     {
         _scrapers = scrapers;
         _gemini = gemini;
         _dbContext = dbContext;
         _telegram = telegram;
+        _autoApply = autoApply;
         _logger = logger;
     }
 
@@ -119,6 +122,9 @@ public class JobScoutManager
             return;
         }
 
+        // ── Check if auto-apply is enabled ──────────────────────────────
+        var autoApplyEnabled = (await _dbContext.UserJobPreferences.Select(p => (bool?)p.AutoApplyEnabled).FirstOrDefaultAsync(cancellationToken)) ?? true;
+
         // ── Assign status and collect all at once ───────────────────────
         var toSave = new List<ScoutedJob>();
         var toAlert = new List<ScoutedJob>();
@@ -127,6 +133,9 @@ public class JobScoutManager
         {
             var job = fresh[i];
             var isRelevant = i < relevanceResults.Count && relevanceResults[i];
+
+            // Stamp the board-specific job ID extracted from URL
+            job.JobId = AutoApplyService.ExtractJobId(job.LinkedInUrl);
 
             if (isRelevant)
             {
@@ -147,13 +156,25 @@ public class JobScoutManager
         await _dbContext.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Saved {Count} jobs. {Matches} match(es).", toSave.Count, toAlert.Count);
 
-        // ── Send Telegram alerts for matches ─────────────────────────────
-        if (chatId != 0)
+        // ── Auto-apply or send Telegram alert (conditional) ──────────────
+        foreach (var job in toAlert)
         {
-            foreach (var job in toAlert)
+            if (cancellationToken.IsCancellationRequested) break;
+
+            if (autoApplyEnabled)
             {
-                try { await _telegram.SendJobAlertAsync(chatId, job); }
-                catch (Exception ex) { _logger.LogWarning(ex, "Failed to send Telegram alert for {Url}", job.LinkedInUrl); }
+                // Auto-apply handles Telegram notification internally
+                try { await _autoApply.ProcessScoutedJobAsync(job, chatId, cancellationToken); }
+                catch (Exception ex) { _logger.LogError(ex, "AutoApply failed for {Url}", job.LinkedInUrl); }
+            }
+            else
+            {
+                // Manual mode: send Telegram alert with Apply button
+                if (chatId != 0)
+                {
+                    try { await _telegram.SendJobAlertAsync(chatId, job); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to send Telegram alert for {Url}", job.LinkedInUrl); }
+                }
             }
         }
 

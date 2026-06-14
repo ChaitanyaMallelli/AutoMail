@@ -2,7 +2,7 @@
 @model List<JobAutomation.Models.ScoutedJob>
 
 <div class="nav-section mt-2">
-    <span class="nav-section-title d-flex align-items-center justify-content-between">
+    <span class="nav-section-title">
         <span><i class="bi bi-robot me-1"></i> LinkedIn Scout</span>
         <span class="badge rounded-pill scout-sidebar-live-badge">
             @Model.Count(j => j.Status == ScoutedJobStatus.SentToTelegram) live
@@ -43,7 +43,10 @@
                         <i class="bi @statusIcon"></i>
                     </div>
                     <div class="scout-sidebar-text">
-                        <span class="scout-sidebar-keyword">@job.KeywordMatched <span style="opacity:0.6;font-weight:400;">· @(job.Board ?? "LinkedIn")</span></span>
+                        <span class="scout-sidebar-keyword">
+                            @job.KeywordMatched
+                            <span class="scout-sidebar-board">· @(job.Board ?? "LinkedIn")</span>
+                        </span>
                         <span class="scout-sidebar-preview">@preview</span>
                         <span class="scout-sidebar-time">@job.CreatedAt.ToIst().ToString("MMM dd, HH:mm")</span>
                     </div>

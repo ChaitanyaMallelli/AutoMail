@@ -4,235 +4,467 @@
 }
 
 <style>
-    /* ── Tab nav pill style ── */
-    .submit-tabs {
-        display: flex;
-        gap: 6px;
-        margin-bottom: 28px;
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 6px;
-        flex-wrap: wrap;
+    /* ================================================================
+       PAGE-LEVEL TOKENS (layered on top of layout :root)
+    ================================================================ */
+    .upload-page {
+        --up-zone-bg:       rgba(22, 22, 31, 0.6);
+        --up-zone-border:   rgba(124, 58, 237, 0.22);
+        --up-zone-hover-bg: rgba(28, 24, 48, 0.85);
+        --up-glow-ring:     0 0 0 3px rgba(124,58,237,0.18), var(--glow-violet);
     }
 
-    .submit-tabs .nav-link {
+    /* ================================================================
+       PAGE HEADER HERO
+    ================================================================ */
+    .page-hero {
+        margin-bottom: 36px;
+    }
+    .page-hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 14px;
+        border-radius: 9999px;
+        background: rgba(124,58,237,0.10);
+        border: 1px solid rgba(124,58,237,0.25);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #a78bfa;
+        margin-bottom: 14px;
+    }
+    .page-hero-eyebrow i {
+        font-size: 12px;
+    }
+    .page-hero-title {
+        font-size: clamp(26px, 4vw, 34px);
+        font-weight: 800;
+        letter-spacing: -0.8px;
+        color: var(--text-primary);
+        margin: 0 0 10px;
+        line-height: 1.15;
+    }
+    .page-hero-title .grad-word {
+        background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #a78bfa 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .page-hero-sub {
+        font-size: 14.5px;
+        color: var(--text-secondary);
+        margin: 0;
+        max-width: 520px;
+        line-height: 1.65;
+    }
+
+    /* ================================================================
+       TAB NAV
+    ================================================================ */
+    .submit-tabs-wrapper {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 6px;
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .submit-tabs-wrapper .nav-item {
         flex: 1;
-        min-width: 110px;
+        min-width: 0;
+    }
+    .submit-tabs-wrapper .nav-link {
+        width: 100%;
         background: transparent;
         border: 1px solid transparent;
-        color: var(--color-text-secondary);
-        border-radius: var(--radius-md);
-        padding: 10px 14px;
-        font-size: 13.5px;
+        color: var(--text-secondary);
+        border-radius: var(--radius-lg);
+        padding: 11px 10px;
+        font-size: 13px;
         font-weight: 600;
         transition: all 0.18s ease;
         cursor: pointer;
-        display: inline-flex;
+        display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 7px;
         white-space: nowrap;
         text-align: center;
+        letter-spacing: 0.1px;
     }
-
-    .submit-tabs .nav-link:hover {
-        color: var(--color-text-primary);
-        background: rgba(99, 102, 241, 0.08);
-        border-color: rgba(99, 102, 241, 0.20);
+    .submit-tabs-wrapper .nav-link i {
+        font-size: 15px;
+        transition: transform 0.18s ease;
     }
-
-    .submit-tabs .nav-link.active {
-        background: var(--color-accent-gradient);
+    .submit-tabs-wrapper .nav-link:hover {
+        color: #c4b5fd;
+        background: rgba(124,58,237,0.09);
+        border-color: rgba(124,58,237,0.18);
+    }
+    .submit-tabs-wrapper .nav-link:hover i {
+        transform: scale(1.1);
+    }
+    .submit-tabs-wrapper .nav-link.active {
+        background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
         border-color: transparent;
         color: #ffffff;
-        box-shadow: var(--shadow-glow-sm);
+        box-shadow: var(--glow-sm), 0 2px 12px rgba(124,58,237,0.30);
+    }
+    .submit-tabs-wrapper .nav-link.active i {
+        transform: none;
     }
 
-    /* ── Tab content card wrapper ── */
+    /* ================================================================
+       TAB PANE CARD
+    ================================================================ */
     .tab-form-card {
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
         border-radius: var(--radius-xl);
-        padding: 32px;
-        animation: fadeIn 0.22s ease both;
-    }
-
-    /* ── URL input group override ── */
-    .url-input-group {
+        padding: 32px 32px 28px;
         position: relative;
+        overflow: hidden;
+    }
+    /* Ambient corner glow */
+    .tab-form-card::before {
+        content: '';
+        position: absolute;
+        top: -60px;
+        right: -60px;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%);
+        pointer-events: none;
+    }
+    .tab-pane.show.active .tab-form-card {
+        animation: fadeSlideUp 0.22s ease both;
+    }
+    @@keyframes fadeSlideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
     }
 
-    .url-input-group .input-group-text {
-        border-right: none !important;
-        padding-right: 12px;
-        padding-left: 14px;
+    /* ================================================================
+       SECTION LABEL (above drop zone / textarea)
+    ================================================================ */
+    .section-label {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 18px;
+    }
+    .section-label-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-md);
+        background: rgba(124,58,237,0.12);
+        border: 1px solid rgba(124,58,237,0.22);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #a78bfa;
+        flex-shrink: 0;
+    }
+    .section-label-text strong {
+        display: block;
+        font-size: 14.5px;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.2px;
+        line-height: 1.2;
+    }
+    .section-label-text span {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 1px;
+        display: block;
     }
 
-    .url-input-group .form-control {
-        border-left: 1px solid var(--color-border-medium) !important;
-        padding-left: 10px !important;
-        font-size: 14px !important;
+    /* ================================================================
+       TEXTAREA
+    ================================================================ */
+    .job-textarea {
+        width: 100%;
+        min-height: 240px;
+        background: rgba(9,9,11,0.6);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        color: var(--text-primary);
+        font-family: Inter, -apple-system, sans-serif;
+        font-size: 13.5px;
+        line-height: 1.7;
+        padding: 16px 18px;
+        resize: vertical;
+        transition: border-color 0.18s, box-shadow 0.18s;
+        outline: none;
+    }
+    .job-textarea::placeholder {
+        color: var(--text-muted);
+        line-height: 1.7;
+    }
+    .job-textarea:focus {
+        border-color: var(--accent-violet);
+        box-shadow: var(--up-glow-ring);
+        background: rgba(9,9,11,0.8);
+    }
+    .char-counter {
+        text-align: right;
+        font-size: 11.5px;
+        color: var(--text-muted);
+        margin-top: 7px;
+        letter-spacing: 0.2px;
+        font-variant-numeric: tabular-nums;
+    }
+    .char-counter.warn { color: var(--warning); }
+
+    /* ================================================================
+       URL INPUT
+    ================================================================ */
+    .url-field-wrap {
+        display: flex;
+        align-items: center;
+        background: rgba(9,9,11,0.6);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    .url-field-wrap:focus-within {
+        border-color: var(--accent-violet);
+        box-shadow: var(--up-glow-ring);
+    }
+    .url-icon-box {
+        padding: 0 16px;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        border-right: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+    .url-icon-box i {
+        font-size: 17px;
+        color: var(--accent-violet);
+        opacity: 0.7;
+    }
+    .url-field {
+        flex: 1;
+        height: 54px;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-primary);
+        font-family: Inter, -apple-system, sans-serif;
+        font-size: 14px;
+        padding: 0 16px;
+    }
+    .url-field::placeholder { color: var(--text-muted); }
+    .url-supported {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+    .url-supported-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        font-weight: 500;
+        flex-shrink: 0;
+    }
+    .url-supported-chips {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+    .url-chip {
+        font-size: 10.5px;
+        font-weight: 600;
+        padding: 2px 9px;
+        border-radius: 5px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        letter-spacing: 0.3px;
     }
 
-    /* ── Upload zone refreshed ── */
-    .drop-zone {
-        background: rgba(13, 21, 38, 0.55);
-        border: 2px dashed rgba(148, 163, 184, 0.18);
+    /* ================================================================
+       DROP ZONE
+    ================================================================ */
+    .upload-zone {
+        background: var(--up-zone-bg);
+        border: 2px dashed var(--up-zone-border);
         border-radius: var(--radius-xl);
-        padding: 56px 32px;
+        padding: 60px 32px;
         text-align: center;
         cursor: pointer;
-        transition: all 0.20s ease;
+        transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
         position: relative;
         overflow: hidden;
         user-select: none;
     }
-
-    .drop-zone::after {
+    /* Background radial shimmer */
+    .upload-zone::before {
         content: '';
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at center, rgba(99,102,241,0.18) 0%, transparent 70%);
+        background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.10) 0%, transparent 65%);
         opacity: 0;
-        transition: opacity 0.20s ease;
+        transition: opacity 0.22s;
         pointer-events: none;
     }
-
-    .drop-zone:hover,
-    .drop-zone.drag-over {
-        border-color: var(--color-accent);
-        background: rgba(19, 28, 53, 0.85);
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+        background: var(--up-zone-hover-bg);
+        border-color: var(--accent-violet);
+        box-shadow: var(--glow-sm);
     }
-
-    .drop-zone:hover::after,
-    .drop-zone.drag-over::after {
+    .upload-zone:hover::before,
+    .upload-zone.drag-over::before {
         opacity: 1;
     }
-
-    .drop-zone.drag-over {
-        box-shadow: inset 0 0 36px rgba(99,102,241,0.22);
+    .upload-zone.drag-over {
+        box-shadow: 0 0 0 3px rgba(124,58,237,0.18), inset 0 0 40px rgba(124,58,237,0.12);
+        border-style: solid;
     }
 
-    .drop-zone-icon {
-        font-size: 48px;
-        color: var(--color-accent-light);
-        opacity: 0.65;
-        display: block;
-        margin-bottom: 16px;
-        transition: opacity 0.20s ease, transform 0.20s ease;
+    /* Icon container */
+    .zone-icon-wrap {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: rgba(124,58,237,0.10);
+        border: 1px solid rgba(124,58,237,0.22);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        color: #a78bfa;
+        margin-bottom: 18px;
         position: relative;
         z-index: 1;
+        transition: transform 0.22s, box-shadow 0.22s, background 0.22s;
     }
-
-    .drop-zone:hover .drop-zone-icon {
-        opacity: 1;
-        transform: translateY(-4px);
+    .upload-zone:hover .zone-icon-wrap,
+    .upload-zone.drag-over .zone-icon-wrap {
+        transform: translateY(-4px) scale(1.05);
+        background: rgba(124,58,237,0.18);
+        box-shadow: var(--glow-sm);
     }
-
-    .drop-zone-title {
+    .zone-title {
         font-size: 17px;
-        font-weight: 600;
-        color: var(--color-text-primary);
+        font-weight: 700;
+        color: var(--text-primary);
         margin-bottom: 6px;
         letter-spacing: -0.3px;
         position: relative;
         z-index: 1;
     }
-
-    .drop-zone-sub {
+    .zone-sub {
         font-size: 13.5px;
-        color: var(--color-text-secondary);
+        color: var(--text-secondary);
         margin-bottom: 0;
         position: relative;
         z-index: 1;
+        line-height: 1.55;
     }
-
-    .drop-zone-browse {
-        color: var(--color-accent-light);
+    .zone-browse {
+        color: #a78bfa;
         font-weight: 600;
         cursor: pointer;
         text-decoration: underline;
         text-underline-offset: 3px;
         transition: color 0.15s;
     }
-    .drop-zone-browse:hover { color: #c7d2fe; }
+    .zone-browse:hover { color: #c4b5fd; }
 
-    /* ── Format chips ── */
-    .format-chips {
+    .zone-chips {
         display: flex;
         gap: 6px;
         justify-content: center;
         flex-wrap: wrap;
-        margin-top: 20px;
+        margin-top: 22px;
         position: relative;
         z-index: 1;
     }
-
-    .format-chip {
+    .zone-chip {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 3px 10px;
+        padding: 4px 11px;
         border-radius: 6px;
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(255,255,255,0.04);
         font-size: 11px;
-        color: var(--color-text-muted);
-        border: 1px solid var(--color-border);
-        font-weight: 500;
-        letter-spacing: 0.3px;
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
     }
 
-    /* ── File selected preview ── */
+    /* ================================================================
+       FILE CHOSEN BANNER
+    ================================================================ */
     .file-chosen-banner {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 14px 18px;
-        background: var(--color-success-bg);
-        border: 1px solid var(--color-success-border);
-        border-radius: var(--radius-md);
+        gap: 14px;
+        padding: 16px 18px;
+        background: var(--success-bg);
+        border: 1px solid rgba(34,197,94,0.25);
+        border-radius: var(--radius-lg);
         margin-top: 16px;
         flex-wrap: wrap;
+        animation: fadeSlideUp 0.18s ease both;
     }
-
     .file-chosen-icon {
-        font-size: 28px;
-        color: var(--color-success-light);
+        font-size: 30px;
+        color: var(--success);
         flex-shrink: 0;
     }
-
-    .file-chosen-info {
-        flex: 1;
-        min-width: 0;
-    }
-
+    .file-chosen-info { flex: 1; min-width: 0; }
     .file-chosen-name {
-        font-weight: 600;
+        font-weight: 700;
         font-size: 14px;
-        color: var(--color-text-primary);
+        color: var(--text-primary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-
     .file-chosen-size {
         font-size: 12px;
-        color: var(--color-text-muted);
-        margin-top: 1px;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+    .btn-remove-file {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        background: var(--danger-bg);
+        border: 1px solid rgba(239,68,68,0.28);
+        color: var(--danger);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+        flex-shrink: 0;
+    }
+    .btn-remove-file:hover {
+        background: rgba(239,68,68,0.20);
+        border-color: rgba(239,68,68,0.50);
+        color: #fca5a5;
     }
 
-    /* ── Character counter ── */
-    .char-counter {
-        text-align: right;
-        font-size: 11px;
-        color: var(--color-text-muted);
-        margin-top: 6px;
-        letter-spacing: 0.2px;
-    }
-
-    /* ── Submit row ── */
-    .form-submit-row {
+    /* ================================================================
+       SUBMIT ROW
+    ================================================================ */
+    .submit-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -240,173 +472,313 @@
         gap: 12px;
         flex-wrap: wrap;
     }
-
-    .form-submit-hint {
-        font-size: 12px;
-        color: var(--color-text-muted);
+    .submit-hint {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
     }
+    .submit-hint i { color: var(--accent-violet); opacity: 0.7; font-size: 13px; }
 
-    /* ── How it works ── */
-    .how-it-works-section {
-        margin-top: 48px;
-        padding-top: 32px;
-        border-top: 1px solid var(--color-border);
-    }
-
-    .how-it-works-title {
+    /* ── Primary action button ── */
+    .btn-primary-upload {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+        border: none;
+        color: #fff;
+        font-family: Inter, -apple-system, sans-serif;
         font-size: 14px;
-        font-weight: 600;
-        color: var(--color-text-secondary);
+        font-weight: 700;
+        letter-spacing: 0.1px;
+        cursor: pointer;
+        transition: box-shadow 0.18s, transform 0.18s, opacity 0.18s;
+        white-space: nowrap;
+    }
+    .btn-primary-upload:hover:not(:disabled) {
+        box-shadow: var(--glow-violet);
+        transform: translateY(-1px);
+    }
+    .btn-primary-upload:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: var(--glow-sm);
+    }
+    .btn-primary-upload:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+    .btn-primary-upload .btn-spinner {
+        display: none;
+        width: 15px;
+        height: 15px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+    .btn-primary-upload.loading .btn-spinner { display: block; }
+    .btn-primary-upload.loading .btn-label-icon { display: none; }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* ================================================================
+       HOW IT WORKS SECTION
+    ================================================================ */
+    .hiw-section {
+        margin-top: 52px;
+        padding-top: 36px;
+        border-top: 1px solid var(--border);
+    }
+    .hiw-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .hiw-title {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 20px;
+        font-size: 11px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1.2px;
+        letter-spacing: 1.8px;
+        color: var(--text-muted);
     }
-
-    .how-it-works-title i { color: var(--color-warning); font-size: 15px; }
-
-    .steps-row {
+    .hiw-title i { color: var(--warning); font-size: 14px; }
+    .hiw-tagline {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+    .hiw-steps {
         display: flex;
         align-items: stretch;
-        gap: 8px;
+        gap: 10px;
         overflow-x: auto;
-        padding-bottom: 4px;
+        padding-bottom: 6px;
         -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
     }
-
-    .step-item {
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border);
+    .hiw-steps::-webkit-scrollbar { display: none; }
+    .hiw-step {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
         border-radius: var(--radius-lg);
-        padding: 20px 18px;
+        padding: 22px 18px 18px;
         text-align: center;
         flex: 1;
-        min-width: 148px;
+        min-width: 150px;
         position: relative;
-        transition: all 0.18s ease;
+        transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
     }
-
-    .step-item:hover {
-        border-color: var(--color-accent);
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+    .hiw-step:hover {
+        border-color: var(--border-hover);
+        transform: translateY(-3px);
+        box-shadow: var(--glow-sm);
     }
-
-    .step-num {
+    .hiw-step-num {
         position: absolute;
-        top: -9px;
-        left: 14px;
-        width: 20px;
-        height: 20px;
+        top: -10px;
+        left: 16px;
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
-        background: var(--color-accent-gradient);
+        background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
         color: #fff;
         font-size: 10px;
-        font-weight: 700;
+        font-weight: 800;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: var(--shadow-glow-sm);
+        box-shadow: var(--glow-sm);
     }
-
-    .step-ico {
-        font-size: 26px;
-        color: var(--color-accent-light);
-        margin-bottom: 10px;
+    .hiw-step-icon {
+        font-size: 28px;
+        color: #a78bfa;
+        margin-bottom: 11px;
         display: block;
+        transition: transform 0.18s;
     }
-
-    .step-item h6 {
+    .hiw-step:hover .hiw-step-icon {
+        transform: scale(1.12);
+    }
+    .hiw-step h6 {
         font-size: 13.5px;
-        font-weight: 600;
-        color: var(--color-text-primary);
-        margin-bottom: 6px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 5px;
+        letter-spacing: -0.2px;
     }
-
-    .step-item p {
+    .hiw-step p {
         font-size: 11.5px;
-        color: var(--color-text-muted);
+        color: var(--text-muted);
         margin: 0;
-        line-height: 1.55;
+        line-height: 1.6;
     }
-
-    .step-sep {
-        font-size: 16px;
-        color: var(--color-text-muted);
-        opacity: 0.4;
+    .hiw-sep {
         display: flex;
         align-items: center;
         flex-shrink: 0;
+        color: var(--text-muted);
+        opacity: 0.35;
+        font-size: 15px;
     }
 
-    /* ── Processing overlay ── */
+    /* ================================================================
+       PROCESSING OVERLAY
+    ================================================================ */
     .processing-overlay {
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(10, 15, 30, 0.80);
-        backdrop-filter: blur(6px);
+        background: rgba(9,9,11,0.82);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         z-index: 9999;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 20px;
+        gap: 0;
     }
+    .processing-overlay.show { display: flex; }
 
-    .processing-overlay.show {
+    .processing-card {
+        background: var(--bg-card);
+        border: 1px solid rgba(124,58,237,0.25);
+        border-radius: var(--radius-xl);
+        padding: 48px 52px;
+        text-align: center;
+        box-shadow: var(--glow-violet), 0 32px 80px rgba(0,0,0,0.6);
         display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        min-width: 260px;
+        max-width: 380px;
+        animation: fadeSlideUp 0.28s ease both;
     }
-
-    .processing-spinner {
-        width: 60px;
-        height: 60px;
+    .processing-ring-wrap {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        margin-bottom: 28px;
+    }
+    .processing-ring {
+        width: 80px;
+        height: 80px;
         border-radius: 50%;
-        border: 3px solid rgba(99,102,241,0.18);
-        border-top-color: var(--color-accent);
-        animation: spin 0.8s linear infinite;
+        border: 3px solid rgba(124,58,237,0.14);
+        border-top-color: var(--accent-violet);
+        animation: spin 0.75s linear infinite;
     }
-
-    .processing-text {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--color-text-primary);
-        letter-spacing: -0.2px;
+    .processing-ring-inner {
+        position: absolute;
+        inset: 12px;
+        border-radius: 50%;
+        border: 2px solid rgba(99,102,241,0.12);
+        border-bottom-color: var(--accent-indigo);
+        animation: spin 1.2s linear infinite reverse;
     }
-
-    .processing-subtext {
+    .processing-icon {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .processing-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.3px;
+        margin-bottom: 8px;
+    }
+    .processing-sub {
         font-size: 13px;
-        color: var(--color-text-muted);
-        margin-top: -12px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+    .processing-dots span {
+        display: inline-block;
+        animation: blink 1.4s infinite both;
+    }
+    .processing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .processing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @@keyframes blink {
+        0%, 80%, 100% { opacity: 0; }
+        40% { opacity: 1; }
     }
 
-    /* ── Mobile tweaks ── */
+    /* ================================================================
+       MOBILE
+    ================================================================ */
     @@media (max-width: 575.98px) {
-        .tab-form-card { padding: 20px 16px; }
-        .drop-zone { padding: 40px 16px; }
-        .submit-tabs .nav-link { min-width: unset; padding: 9px 10px; font-size: 12.5px; }
-        .form-submit-row { flex-direction: column; align-items: stretch; }
-        .form-submit-row .btn-glow { justify-content: center; }
-        .step-sep { display: none; }
+        .tab-form-card { padding: 20px 16px 18px; }
+        .upload-zone { padding: 44px 16px; }
+        .submit-tabs-wrapper .nav-link { padding: 9px 6px; font-size: 12px; gap: 5px; }
+        .submit-tabs-wrapper .nav-link i { font-size: 14px; }
+        .submit-tabs-wrapper .nav-link span { display: none; }
+        .submit-row { flex-direction: column; align-items: stretch; }
+        .submit-row .btn-primary-upload { justify-content: center; }
+        .hiw-sep { display: none; }
+        .hiw-step { min-width: 130px; }
+        .processing-card { padding: 36px 24px; min-width: 240px; }
+        .page-hero-title { font-size: 24px; }
     }
 </style>
 
 <!-- Processing overlay -->
 <div class="processing-overlay" id="processingOverlay">
-    <div class="processing-spinner"></div>
-    <div class="processing-text" id="processingText">Processing with AI...</div>
-    <div class="processing-subtext">Extracting job details, please wait</div>
+    <div class="processing-card">
+        <div class="processing-ring-wrap">
+            <div class="processing-ring"></div>
+            <div class="processing-ring-inner"></div>
+            <div class="processing-icon"><i class="bi bi-robot"></i></div>
+        </div>
+        <div class="processing-title" id="processingText">Processing with AI...</div>
+        <div class="processing-sub">
+            Extracting job details<span class="processing-dots">
+                <span>.</span><span>.</span><span>.</span>
+            </span>
+        </div>
+    </div>
 </div>
 
-<div style="max-width: 800px; margin: 0 auto;">
+<div style="max-width: 820px; margin: 0 auto;" class="upload-page">
+
+    <!-- Page Hero -->
+    <div class="page-hero">
+        <div class="page-hero-eyebrow">
+            <i class="bi bi-lightning-charge-fill"></i>
+            New Submission
+        </div>
+        <h1 class="page-hero-title">
+            Submit a <span class="grad-word">New Job</span>
+        </h1>
+        <p class="page-hero-sub">
+            Paste text, drop a file, or share a URL — Gemini AI extracts company,
+            role and skills in seconds, then drafts a personalised cold email.
+        </p>
+    </div>
 
     <!-- Tab Navigation -->
-    <ul class="nav submit-tabs" id="submitTabs" role="tablist">
-        <li class="nav-item" role="presentation" style="flex:1;">
+    <ul class="nav submit-tabs-wrapper" id="submitTabs" role="tablist">
+        <li class="nav-item" role="presentation">
             <button class="nav-link active" id="tab-text" data-bs-toggle="pill"
                     data-bs-target="#pane-text" type="button" role="tab"
                     aria-controls="pane-text" aria-selected="true">
@@ -414,7 +786,7 @@
                 <span>Text</span>
             </button>
         </li>
-        <li class="nav-item" role="presentation" style="flex:1;">
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-url" data-bs-toggle="pill"
                     data-bs-target="#pane-url" type="button" role="tab"
                     aria-controls="pane-url" aria-selected="false">
@@ -422,7 +794,7 @@
                 <span>URL</span>
             </button>
         </li>
-        <li class="nav-item" role="presentation" style="flex:1;">
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-image" data-bs-toggle="pill"
                     data-bs-target="#pane-image" type="button" role="tab"
                     aria-controls="pane-image" aria-selected="false">
@@ -430,7 +802,7 @@
                 <span>Image</span>
             </button>
         </li>
-        <li class="nav-item" role="presentation" style="flex:1;">
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-pdf" data-bs-toggle="pill"
                     data-bs-target="#pane-pdf" type="button" role="tab"
                     aria-controls="pane-pdf" aria-selected="false">
@@ -443,92 +815,121 @@
     <!-- Tab Panes -->
     <div class="tab-content" id="submitTabContent">
 
-        <!-- ── Text Tab ── -->
+        <!-- ── TEXT TAB ── -->
         <div class="tab-pane fade show active" id="pane-text" role="tabpanel" aria-labelledby="tab-text">
             <div class="tab-form-card">
-                <div class="mb-3">
-                    <label class="form-label">
-                        <i class="bi bi-clipboard-fill me-1 text-accent-light"></i>
-                        Job Description Text
-                    </label>
-                    <form method="post" asp-action="ProcessText" id="form-text">
-                        <textarea name="jobText"
-                                  class="form-control text-area-large"
-                                  id="jobTextarea"
-                                  placeholder="Paste the full job posting text here...&#10;&#10;Include company name, role title, required skills, experience level, location and any contact email you can find."
-                                  rows="13"
-                                  required></textarea>
-                        <div class="char-counter"><span id="charCount">0</span> characters</div>
-                        <div class="form-submit-row">
-                            <div class="form-submit-hint">
-                                <i class="bi bi-robot"></i>
-                                Gemini AI will extract all job details
-                            </div>
-                            <button type="submit" class="btn btn-glow btn-lg" id="btn-text">
-                                <i class="bi bi-magic me-1"></i> Process with AI
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── URL Tab ── -->
-        <div class="tab-pane fade" id="pane-url" role="tabpanel" aria-labelledby="tab-url">
-            <div class="tab-form-card">
-                <label class="form-label mb-3">
-                    <i class="bi bi-link-45deg me-1 text-accent-light"></i>
-                    Job Posting URL
-                </label>
-                <form method="post" asp-action="ProcessUrl" id="form-url">
-                    <div class="input-group input-group-lg url-input-group mb-2">
-                        <span class="input-group-text">
-                            <i class="bi bi-globe2" style="color:var(--color-text-muted);"></i>
-                        </span>
-                        <input type="url"
-                               name="jobUrl"
-                               class="form-control"
-                               placeholder="https://www.linkedin.com/jobs/view/..."
-                               required
-                               autocomplete="off" />
+                <div class="section-label">
+                    <div class="section-label-icon">
+                        <i class="bi bi-clipboard-fill"></i>
                     </div>
-
-                    <p class="text-muted small mb-0 px-1">
-                        Supports LinkedIn, Indeed, Glassdoor, Naukri, company career pages and most public job boards.
-                    </p>
-
-                    <div class="form-submit-row">
-                        <div class="form-submit-hint">
-                            <i class="bi bi-cloud-download"></i>
-                            Page content is fetched and parsed automatically
+                    <div class="section-label-text">
+                        <strong>Job Description Text</strong>
+                        <span>Paste the full posting — role, skills, contact info</span>
+                    </div>
+                </div>
+                <form method="post" asp-action="ProcessText" id="form-text">
+                    <textarea name="jobText"
+                              class="job-textarea"
+                              id="jobTextarea"
+                              placeholder="Paste the full job posting here...&#10;&#10;Include the company name, role title, required skills, experience level, location, and any contact email you can find."
+                              required></textarea>
+                    <div class="char-counter"><span id="charCount">0</span> characters</div>
+                    <div class="submit-row">
+                        <div class="submit-hint">
+                            <i class="bi bi-stars"></i>
+                            Gemini AI will extract all job details automatically
                         </div>
-                        <button type="submit" class="btn btn-glow btn-lg" id="btn-url">
-                            <i class="bi bi-magic me-1"></i> Extract from URL
+                        <button type="submit" class="btn-primary-upload" id="btn-text">
+                            <span class="btn-spinner"></span>
+                            <i class="bi bi-magic btn-label-icon"></i>
+                            <span>Process with AI</span>
                         </button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- ── Image Tab ── -->
+        <!-- ── URL TAB ── -->
+        <div class="tab-pane fade" id="pane-url" role="tabpanel" aria-labelledby="tab-url">
+            <div class="tab-form-card">
+                <div class="section-label">
+                    <div class="section-label-icon">
+                        <i class="bi bi-globe2"></i>
+                    </div>
+                    <div class="section-label-text">
+                        <strong>Job Posting URL</strong>
+                        <span>Paste any public job listing link</span>
+                    </div>
+                </div>
+                <form method="post" asp-action="ProcessUrl" id="form-url">
+                    <div class="url-field-wrap">
+                        <div class="url-icon-box">
+                            <i class="bi bi-link-45deg"></i>
+                        </div>
+                        <input type="url"
+                               name="jobUrl"
+                               class="url-field"
+                               placeholder="https://www.linkedin.com/jobs/view/..."
+                               required
+                               autocomplete="off"
+                               spellcheck="false" />
+                    </div>
+                    <div class="url-supported">
+                        <span class="url-supported-label">Supports:</span>
+                        <div class="url-supported-chips">
+                            <span class="url-chip">LinkedIn</span>
+                            <span class="url-chip">Indeed</span>
+                            <span class="url-chip">Glassdoor</span>
+                            <span class="url-chip">Naukri</span>
+                            <span class="url-chip">+ more</span>
+                        </div>
+                    </div>
+                    <div class="submit-row">
+                        <div class="submit-hint">
+                            <i class="bi bi-cloud-download"></i>
+                            Page content is fetched &amp; parsed automatically
+                        </div>
+                        <button type="submit" class="btn-primary-upload" id="btn-url">
+                            <span class="btn-spinner"></span>
+                            <i class="bi bi-box-arrow-in-down btn-label-icon"></i>
+                            <span>Extract from URL</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ── IMAGE TAB ── -->
         <div class="tab-pane fade" id="pane-image" role="tabpanel" aria-labelledby="tab-image">
             <div class="tab-form-card">
-                <label class="form-label mb-3">
-                    <i class="bi bi-image me-1 text-accent-light"></i>
-                    Upload Screenshot
-                </label>
+                <div class="section-label">
+                    <div class="section-label-icon">
+                        <i class="bi bi-image"></i>
+                    </div>
+                    <div class="section-label-text">
+                        <strong>Upload Screenshot</strong>
+                        <span>Drop a screenshot of any job posting</span>
+                    </div>
+                </div>
                 <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="form-image">
                     <input type="file" name="file" id="imageFileInput" accept="image/*" class="d-none" />
 
-                    <div class="drop-zone" id="imageDropZone" onclick="document.getElementById('imageFileInput').click()">
-                        <i class="bi bi-image drop-zone-icon" id="imageDropIcon"></i>
-                        <div class="drop-zone-title">Drop your screenshot here</div>
-                        <p class="drop-zone-sub">or <span class="drop-zone-browse" onclick="event.stopPropagation(); document.getElementById('imageFileInput').click()">browse</span> to choose a file</p>
-                        <div class="format-chips">
-                            <span class="format-chip"><i class="bi bi-file-image"></i> PNG</span>
-                            <span class="format-chip"><i class="bi bi-file-image"></i> JPG</span>
-                            <span class="format-chip"><i class="bi bi-file-image"></i> WEBP</span>
-                            <span class="format-chip"><i class="bi bi-file-image"></i> GIF</span>
+                    <div class="upload-zone" id="imageDropZone"
+                         onclick="document.getElementById('imageFileInput').click()">
+                        <div class="zone-icon-wrap">
+                            <i class="bi bi-image"></i>
+                        </div>
+                        <div class="zone-title">Drop your screenshot here</div>
+                        <p class="zone-sub">
+                            or <span class="zone-browse"
+                                     onclick="event.stopPropagation(); document.getElementById('imageFileInput').click()">browse files</span>
+                            from your device
+                        </p>
+                        <div class="zone-chips">
+                            <span class="zone-chip">PNG</span>
+                            <span class="zone-chip">JPG</span>
+                            <span class="zone-chip">WEBP</span>
+                            <span class="zone-chip">GIF</span>
                         </div>
                     </div>
 
@@ -538,41 +939,55 @@
                             <div class="file-chosen-name" id="imageFileName"></div>
                             <div class="file-chosen-size" id="imageFileSize"></div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearImageFile()">
+                        <button type="button" class="btn-remove-file" onclick="clearImageFile()">
                             <i class="bi bi-x-lg"></i> Remove
                         </button>
                     </div>
 
-                    <div class="form-submit-row">
-                        <div class="form-submit-hint">
+                    <div class="submit-row">
+                        <div class="submit-hint">
                             <i class="bi bi-eye"></i>
-                            AI reads text directly from your screenshot
+                            AI reads all text directly from your screenshot
                         </div>
-                        <button type="submit" class="btn btn-glow btn-lg d-none" id="btn-image">
-                            <i class="bi bi-magic me-1"></i> Process with AI
+                        <button type="submit" class="btn-primary-upload d-none" id="btn-image">
+                            <span class="btn-spinner"></span>
+                            <i class="bi bi-magic btn-label-icon"></i>
+                            <span>Process with AI</span>
                         </button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- ── PDF Tab ── -->
+        <!-- ── PDF TAB ── -->
         <div class="tab-pane fade" id="pane-pdf" role="tabpanel" aria-labelledby="tab-pdf">
             <div class="tab-form-card">
-                <label class="form-label mb-3">
-                    <i class="bi bi-file-pdf me-1 text-accent-light"></i>
-                    Upload PDF
-                </label>
+                <div class="section-label">
+                    <div class="section-label-icon">
+                        <i class="bi bi-file-pdf"></i>
+                    </div>
+                    <div class="section-label-text">
+                        <strong>Upload PDF</strong>
+                        <span>Drop a job description PDF — max 10 MB</span>
+                    </div>
+                </div>
                 <form method="post" asp-action="ProcessFile" enctype="multipart/form-data" id="form-pdf">
                     <input type="file" name="file" id="pdfFileInput" accept=".pdf" class="d-none" />
 
-                    <div class="drop-zone" id="pdfDropZone" onclick="document.getElementById('pdfFileInput').click()">
-                        <i class="bi bi-file-pdf drop-zone-icon" id="pdfDropIcon"></i>
-                        <div class="drop-zone-title">Drop your PDF here</div>
-                        <p class="drop-zone-sub">or <span class="drop-zone-browse" onclick="event.stopPropagation(); document.getElementById('pdfFileInput').click()">browse</span> to choose a file</p>
-                        <div class="format-chips">
-                            <span class="format-chip"><i class="bi bi-file-pdf"></i> PDF</span>
-                            <span class="format-chip">Max 10 MB</span>
+                    <div class="upload-zone" id="pdfDropZone"
+                         onclick="document.getElementById('pdfFileInput').click()">
+                        <div class="zone-icon-wrap">
+                            <i class="bi bi-file-pdf"></i>
+                        </div>
+                        <div class="zone-title">Drop your PDF here</div>
+                        <p class="zone-sub">
+                            or <span class="zone-browse"
+                                     onclick="event.stopPropagation(); document.getElementById('pdfFileInput').click()">browse files</span>
+                            from your device
+                        </p>
+                        <div class="zone-chips">
+                            <span class="zone-chip">PDF</span>
+                            <span class="zone-chip">Max 10 MB</span>
                         </div>
                     </div>
 
@@ -582,18 +997,20 @@
                             <div class="file-chosen-name" id="pdfFileName"></div>
                             <div class="file-chosen-size" id="pdfFileSize"></div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearPdfFile()">
+                        <button type="button" class="btn-remove-file" onclick="clearPdfFile()">
                             <i class="bi bi-x-lg"></i> Remove
                         </button>
                     </div>
 
-                    <div class="form-submit-row">
-                        <div class="form-submit-hint">
+                    <div class="submit-row">
+                        <div class="submit-hint">
                             <i class="bi bi-file-text"></i>
-                            PDF is parsed and text extracted automatically
+                            PDF text is extracted &amp; analysed by AI
                         </div>
-                        <button type="submit" class="btn btn-glow btn-lg d-none" id="btn-pdf">
-                            <i class="bi bi-magic me-1"></i> Process with AI
+                        <button type="submit" class="btn-primary-upload d-none" id="btn-pdf">
+                            <span class="btn-spinner"></span>
+                            <i class="bi bi-magic btn-label-icon"></i>
+                            <span>Process with AI</span>
                         </button>
                     </div>
                 </form>
@@ -603,173 +1020,171 @@
     </div><!-- /tab-content -->
 
     <!-- How it works -->
-    <div class="how-it-works-section">
-        <div class="how-it-works-title">
-            <i class="bi bi-lightning-charge-fill"></i>
-            How it works
+    <div class="hiw-section">
+        <div class="hiw-header">
+            <div class="hiw-title">
+                <i class="bi bi-lightning-charge-fill"></i>
+                How it works
+            </div>
+            <span class="hiw-tagline">From job post to sent email in under 30 seconds</span>
         </div>
-        <div class="steps-row">
-            <div class="step-item">
-                <div class="step-num">1</div>
-                <i class="bi bi-cloud-arrow-up step-ico"></i>
+        <div class="hiw-steps">
+            <div class="hiw-step">
+                <div class="hiw-step-num">1</div>
+                <i class="bi bi-cloud-arrow-up hiw-step-icon"></i>
                 <h6>Submit</h6>
                 <p>Paste text, upload a file or share a URL</p>
             </div>
-            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
-            <div class="step-item">
-                <div class="step-num">2</div>
-                <i class="bi bi-robot step-ico"></i>
+            <div class="hiw-sep"><i class="bi bi-chevron-right"></i></div>
+            <div class="hiw-step">
+                <div class="hiw-step-num">2</div>
+                <i class="bi bi-robot hiw-step-icon"></i>
                 <h6>AI Extracts</h6>
                 <p>Gemini reads and pulls company, role &amp; skills</p>
             </div>
-            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
-            <div class="step-item">
-                <div class="step-num">3</div>
-                <i class="bi bi-envelope-paper step-ico"></i>
+            <div class="hiw-sep"><i class="bi bi-chevron-right"></i></div>
+            <div class="hiw-step">
+                <div class="hiw-step-num">3</div>
+                <i class="bi bi-envelope-paper hiw-step-icon"></i>
                 <h6>Email Drafted</h6>
-                <p>Personalised email written with your real skills</p>
+                <p>Personalised email crafted with your real skills</p>
             </div>
-            <div class="step-sep"><i class="bi bi-arrow-right"></i></div>
-            <div class="step-item">
-                <div class="step-num">4</div>
-                <i class="bi bi-send-check step-ico"></i>
+            <div class="hiw-sep"><i class="bi bi-chevron-right"></i></div>
+            <div class="hiw-step">
+                <div class="hiw-step-num">4</div>
+                <i class="bi bi-send-check hiw-step-icon"></i>
                 <h6>Review &amp; Send</h6>
                 <p>Edit, approve and send via Gmail in one click</p>
             </div>
         </div>
     </div>
 
-</div><!-- /max-width wrapper -->
+</div><!-- /page wrapper -->
 
 @section Scripts {
 <script>
-    /* ── Helpers ─────────────────────────────────────────────── */
-    function formatBytes(bytes) {
+(function () {
+    'use strict';
+
+    /* ── Helpers ─────────────────────────────────────── */
+    function fmt(bytes) {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
     function showProcessing(label) {
-        document.getElementById('processingText').textContent = label || 'Processing with AI...';
+        var el = document.getElementById('processingText');
+        if (el) el.textContent = label || 'Processing with AI...';
         document.getElementById('processingOverlay').classList.add('show');
     }
 
-    /* ── Character counter ────────────────────────────────────── */
+    function setLoading(btn, on) {
+        if (!btn) return;
+        btn.disabled = on;
+        btn.classList.toggle('loading', on);
+    }
+
+    /* ── Character counter ────────────────────────────── */
     var textarea = document.getElementById('jobTextarea');
-    var charSpan = document.getElementById('charCount');
+    var charSpan  = document.getElementById('charCount');
     if (textarea && charSpan) {
         textarea.addEventListener('input', function () {
-            charSpan.textContent = textarea.value.length;
+            var n = textarea.value.length;
+            charSpan.textContent = n.toLocaleString();
+            charSpan.parentElement.classList.toggle('warn', n > 12000);
         });
     }
 
-    /* ── Image drop zone ─────────────────────────────────────── */
-    var imageZone   = document.getElementById('imageDropZone');
-    var imageInput  = document.getElementById('imageFileInput');
+    /* ── Generic drop zone setup ─────────────────────── */
+    function initDropZone(zoneId, inputId, onFileReady) {
+        var zone  = document.getElementById(zoneId);
+        var input = document.getElementById(inputId);
+        if (!zone || !input) return;
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (e) {
+            zone.addEventListener(e, function (ev) { ev.preventDefault(); ev.stopPropagation(); });
+        });
+        ['dragenter', 'dragover'].forEach(function (e) {
+            zone.addEventListener(e, function () { zone.classList.add('drag-over'); });
+        });
+        ['dragleave', 'drop'].forEach(function (e) {
+            zone.addEventListener(e, function () { zone.classList.remove('drag-over'); });
+        });
+        zone.addEventListener('drop', function (ev) {
+            var file = ev.dataTransfer.files[0];
+            if (file) {
+                input.files = ev.dataTransfer.files;
+                onFileReady(file);
+            }
+        });
+        input.addEventListener('change', function (ev) {
+            if (ev.target.files[0]) onFileReady(ev.target.files[0]);
+        });
+    }
+
+    /* ── Image drop zone ──────────────────────────────── */
     var imageChosen = document.getElementById('imageChosen');
     var imageBtn    = document.getElementById('btn-image');
+    var imageZone   = document.getElementById('imageDropZone');
 
-    if (imageZone) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (evt) {
-            imageZone.addEventListener(evt, function (e) { e.preventDefault(); e.stopPropagation(); });
-        });
-        ['dragenter', 'dragover'].forEach(function (evt) {
-            imageZone.addEventListener(evt, function () { imageZone.classList.add('drag-over'); });
-        });
-        ['dragleave', 'drop'].forEach(function (evt) {
-            imageZone.addEventListener(evt, function () { imageZone.classList.remove('drag-over'); });
-        });
-        imageZone.addEventListener('drop', function (e) {
-            var file = e.dataTransfer.files[0];
-            if (file) { imageInput.files = e.dataTransfer.files; showImageFile(file); }
-        });
-    }
-
-    if (imageInput) {
-        imageInput.addEventListener('change', function (e) {
-            if (e.target.files[0]) showImageFile(e.target.files[0]);
-        });
-    }
-
-    function showImageFile(file) {
+    initDropZone('imageDropZone', 'imageFileInput', function (file) {
         document.getElementById('imageFileName').textContent = file.name;
-        document.getElementById('imageFileSize').textContent = formatBytes(file.size);
+        document.getElementById('imageFileSize').textContent = fmt(file.size);
         imageZone.classList.add('d-none');
         imageChosen.classList.remove('d-none');
         imageBtn.classList.remove('d-none');
-    }
+    });
 
-    function clearImageFile() {
-        imageInput.value = '';
+    window.clearImageFile = function () {
+        document.getElementById('imageFileInput').value = '';
         imageZone.classList.remove('d-none');
         imageChosen.classList.add('d-none');
         imageBtn.classList.add('d-none');
-    }
+    };
 
-    /* ── PDF drop zone ───────────────────────────────────────── */
-    var pdfZone   = document.getElementById('pdfDropZone');
-    var pdfInput  = document.getElementById('pdfFileInput');
+    /* ── PDF drop zone ────────────────────────────────── */
     var pdfChosen = document.getElementById('pdfChosen');
     var pdfBtn    = document.getElementById('btn-pdf');
+    var pdfZone   = document.getElementById('pdfDropZone');
 
-    if (pdfZone) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (evt) {
-            pdfZone.addEventListener(evt, function (e) { e.preventDefault(); e.stopPropagation(); });
-        });
-        ['dragenter', 'dragover'].forEach(function (evt) {
-            pdfZone.addEventListener(evt, function () { pdfZone.classList.add('drag-over'); });
-        });
-        ['dragleave', 'drop'].forEach(function (evt) {
-            pdfZone.addEventListener(evt, function () { pdfZone.classList.remove('drag-over'); });
-        });
-        pdfZone.addEventListener('drop', function (e) {
-            var file = e.dataTransfer.files[0];
-            if (file) { pdfInput.files = e.dataTransfer.files; showPdfFile(file); }
-        });
-    }
-
-    if (pdfInput) {
-        pdfInput.addEventListener('change', function (e) {
-            if (e.target.files[0]) showPdfFile(e.target.files[0]);
-        });
-    }
-
-    function showPdfFile(file) {
+    initDropZone('pdfDropZone', 'pdfFileInput', function (file) {
         document.getElementById('pdfFileName').textContent = file.name;
-        document.getElementById('pdfFileSize').textContent = formatBytes(file.size);
+        document.getElementById('pdfFileSize').textContent = fmt(file.size);
         pdfZone.classList.add('d-none');
         pdfChosen.classList.remove('d-none');
         pdfBtn.classList.remove('d-none');
-    }
+    });
 
-    function clearPdfFile() {
-        pdfInput.value = '';
+    window.clearPdfFile = function () {
+        document.getElementById('pdfFileInput').value = '';
         pdfZone.classList.remove('d-none');
         pdfChosen.classList.add('d-none');
         pdfBtn.classList.add('d-none');
-    }
+    };
 
-    /* ── Form submit → processing overlay ───────────────────── */
+    /* ── Form submit handlers ─────────────────────────── */
     document.getElementById('form-text').addEventListener('submit', function (e) {
         if (!textarea.value.trim()) { e.preventDefault(); textarea.focus(); return; }
-        document.getElementById('btn-text').disabled = true;
+        setLoading(document.getElementById('btn-text'), true);
         showProcessing('Analysing job description...');
     });
 
     document.getElementById('form-url').addEventListener('submit', function () {
-        document.getElementById('btn-url').disabled = true;
+        setLoading(document.getElementById('btn-url'), true);
         showProcessing('Fetching and extracting from URL...');
     });
 
     document.getElementById('form-image').addEventListener('submit', function () {
-        document.getElementById('btn-image').disabled = true;
+        setLoading(document.getElementById('btn-image'), true);
         showProcessing('Reading screenshot with AI...');
     });
 
     document.getElementById('form-pdf').addEventListener('submit', function () {
-        document.getElementById('btn-pdf').disabled = true;
+        setLoading(document.getElementById('btn-pdf'), true);
         showProcessing('Parsing PDF document...');
     });
+
+})();
 </script>
 }

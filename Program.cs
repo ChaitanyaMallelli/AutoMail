@@ -33,6 +33,7 @@ builder.Services.AddScoped<LinkedInScraperService>();
 builder.Services.AddScoped<IJobBoardScraper, LinkedInScraperService>();
 builder.Services.AddScoped<CompanyEmailFinderService>();
 builder.Services.AddScoped<DirectApplyService>();
+builder.Services.AddScoped<AutoApplyService>();
 builder.Services.AddScoped<JobScoutManager>();
 
 // builder.Services.AddSignalR(); // Temporarily disabled Co-Pilot
@@ -41,6 +42,7 @@ builder.Services.AddScoped<JobScoutManager>();
 builder.Services.AddHostedService<JobAutomation.Workers.FollowUpBackgroundService>();
 builder.Services.AddHostedService<JobAutomation.Workers.JobScoutBackgroundService>();
 builder.Services.AddHostedService<JobAutomation.Workers.GmailReplyMonitorService>();
+builder.Services.AddHostedService<JobAutomation.Workers.DailyReportBackgroundService>();
 
 // JSON options
 builder.Services.AddControllers()
@@ -82,6 +84,12 @@ using (var scope = app.Services.CreateScope())
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"Board\" character varying(50) NOT NULL DEFAULT 'LinkedIn';"); } catch { }
         // Link manually placed resume file to active resume record if FilePath is missing
         try { db.Database.ExecuteSqlRaw("UPDATE \"Resumes\" SET \"FilePath\" = 'Resume/Chaitanya_Mallelli_Resume.pdf' WHERE \"IsActive\" = true AND (\"FilePath\" IS NULL OR \"FilePath\" = '');"); } catch { }
+        // Auto-apply: job ID column on ScoutedJobs
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"JobId\" character varying(100) NULL;"); } catch { }
+        // Auto-apply: performance indexes
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_auto_apply_logs_url ON \"AutoApplyLogs\" (\"JobUrl\");"); } catch { }
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_auto_apply_logs_applied_at ON \"AutoApplyLogs\" (\"AppliedAt\" DESC);"); } catch { }
+        try { db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS idx_auto_apply_logs_company_role ON \"AutoApplyLogs\" (\"CompanyName\", \"JobTitle\");"); } catch { }
 
         // Generate the creation DDL script from our EF model
         var sql = db.Database.GenerateCreateScript();
@@ -125,6 +133,29 @@ using (var scope = app.Services.CreateScope())
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to seed default user profile: {ex.Message}");
+        }
+
+        // Seed default UserJobPreferences (Id=1) — auto-apply enabled, 3–4 year experience filter
+        try
+        {
+            if (!db.UserJobPreferences.Any())
+            {
+                db.UserJobPreferences.Add(new UserJobPreferences
+                {
+                    Id                  = 1,
+                    AutoApplyEnabled    = true,
+                    MinExperienceYears  = 3,
+                    MaxExperienceYears  = 4,
+                    MinAtsScore         = 30,
+                    DailyReportUtcHour  = 15,
+                    UpdatedAt           = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to seed UserJobPreferences: {ex.Message}");
         }
     }
     catch (Exception ex)
