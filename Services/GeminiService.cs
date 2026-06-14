@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Caching.Memory;
@@ -16,13 +17,24 @@ public class GeminiService
     private readonly IMemoryCache _cache;
     private readonly ILogger<GeminiService> _logger;
 
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(2);
+    // ── Rate-limit resilience ────────────────────────────────────────────
+    // Static so ALL scoped instances share the same limiter (one app-wide)
+    private static readonly SemaphoreSlim _rateLimitGate = new(1, 1);
+    private static DateTime _lastCallUtc = DateTime.MinValue;
+
+    // 15 RPM limit → 4 seconds per request.  Use 4.5s for safety headroom.
+    private const int MinGapMs = 4500;
+    // Retry policy
+    private const int MaxRetries = 5;
+    private static readonly int[] RetryDelaysMs = { 5_000, 10_000, 20_000, 40_000, 60_000 };
+
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(6);
 
     public GeminiService(HttpClient httpClient, IConfiguration configuration, IMemoryCache cache, ILogger<GeminiService> logger)
     {
         _httpClient = httpClient;
         _apiKey = configuration["GeminiApi:ApiKey"] ?? throw new ArgumentNullException("GeminiApi:ApiKey is not configured");
-        _model = configuration["GeminiApi:Model"] ?? "gemini-2.0-flash-lite";
+        _model = configuration["GeminiApi:Model"] ?? "gemini-3.1-flash-lite";
         _cache = cache;
         _logger = logger;
     }
@@ -447,19 +459,7 @@ Email format rules:
         };
 
         var json = JsonConvert.SerializeObject(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _logger.LogInformation("Calling Gemini API with text prompt...");
-        var response = await _httpClient.PostAsync(url, content);
-        var responseString = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Gemini API error: {StatusCode} - {Response}", response.StatusCode, responseString);
-            throw new HttpRequestException($"Gemini API returned {response.StatusCode}: {responseString}");
-        }
-
-        return ExtractTextFromGeminiResponse(responseString);
+        return await SendWithRateLimitAsync(url, json, "text");
     }
 
     private async Task<string> CallGeminiWithImageAsync(string prompt, byte[] fileBytes, string mimeType)
@@ -496,19 +496,99 @@ Email format rules:
         };
 
         var json = JsonConvert.SerializeObject(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        return await SendWithRateLimitAsync(url, json, mimeType);
+    }
 
-        _logger.LogInformation("Calling Gemini API with image/file ({MimeType})...", mimeType);
-        var response = await _httpClient.PostAsync(url, content);
-        var responseString = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+    /// <summary>
+    /// Central HTTP sender with rate limiting (15 RPM) and exponential backoff retry.
+    /// All Gemini calls go through this single method.
+    /// </summary>
+    private async Task<string> SendWithRateLimitAsync(string url, string jsonBody, string callType)
+    {
+        await _rateLimitGate.WaitAsync();
+        try
         {
-            _logger.LogError("Gemini API error: {StatusCode} - {Response}", response.StatusCode, responseString);
-            throw new HttpRequestException($"Gemini API returned {response.StatusCode}: {responseString}");
-        }
+            // ── Enforce minimum gap between calls ────────────────────────
+            var elapsed = (DateTime.UtcNow - _lastCallUtc).TotalMilliseconds;
+            if (elapsed < MinGapMs)
+            {
+                var waitMs = (int)(MinGapMs - elapsed);
+                _logger.LogInformation("Rate limiter: waiting {WaitMs}ms before next Gemini call.", waitMs);
+                await Task.Delay(waitMs);
+            }
 
-        return ExtractTextFromGeminiResponse(responseString);
+            // ── Retry loop with exponential backoff ──────────────────────
+            for (int attempt = 0; attempt <= MaxRetries; attempt++)
+            {
+                var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                _logger.LogInformation("Calling Gemini API ({CallType}){Retry}...",
+                    callType, attempt > 0 ? $" [retry {attempt}/{MaxRetries}]" : "");
+
+                HttpResponseMessage response;
+                try
+                {
+                    response = await _httpClient.PostAsync(url, content);
+                }
+                catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                {
+                    // HTTP timeout — treat as retryable
+                    _logger.LogWarning("Gemini API timeout on attempt {Attempt}.", attempt + 1);
+                    if (attempt < MaxRetries)
+                    {
+                        var delay = RetryDelaysMs[Math.Min(attempt, RetryDelaysMs.Length - 1)];
+                        await Task.Delay(delay);
+                        continue;
+                    }
+                    throw;
+                }
+
+                _lastCallUtc = DateTime.UtcNow;
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseString = await response.Content.ReadAsStringAsync();
+                    return ExtractTextFromGeminiResponse(responseString);
+                }
+
+                // ── Retryable status codes: 429 (rate limit) and 503 (overloaded) ──
+                if ((response.StatusCode == HttpStatusCode.TooManyRequests ||
+                     response.StatusCode == HttpStatusCode.ServiceUnavailable) &&
+                    attempt < MaxRetries)
+                {
+                    // Prefer Retry-After header from Google if available
+                    var retryAfter = response.Headers.RetryAfter;
+                    int delayMs;
+                    if (retryAfter?.Delta != null)
+                    {
+                        delayMs = (int)retryAfter.Delta.Value.TotalMilliseconds;
+                    }
+                    else
+                    {
+                        delayMs = RetryDelaysMs[Math.Min(attempt, RetryDelaysMs.Length - 1)];
+                    }
+
+                    _logger.LogWarning(
+                        "Gemini API returned {StatusCode}. Retrying in {DelayMs}ms (attempt {Attempt}/{Max}).",
+                        (int)response.StatusCode, delayMs, attempt + 1, MaxRetries);
+
+                    await Task.Delay(delayMs);
+                    continue;
+                }
+
+                // ── Non-retryable error ──────────────────────────────────
+                var errorBody = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Gemini API error: {StatusCode} - {Response}", response.StatusCode, errorBody);
+                throw new HttpRequestException($"Gemini API returned {response.StatusCode}: {errorBody}");
+            }
+
+            // Should not reach here, but just in case
+            throw new HttpRequestException("Gemini API: all retry attempts exhausted.");
+        }
+        finally
+        {
+            _rateLimitGate.Release();
+        }
     }
 
     private string ExtractTextFromGeminiResponse(string responseJson)
