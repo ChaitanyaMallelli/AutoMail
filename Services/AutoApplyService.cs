@@ -411,7 +411,7 @@ public class AutoApplyService
                 RecipientEmail = toEmail,
                 CreatedAt      = DateTime.UtcNow
             };
-            await _emailService.SendEmailAsync(tempEmail, profile);
+            // await _emailService.SendEmailAsync(tempEmail, profile);
         }
         catch (Exception ex)
         {
