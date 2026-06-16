@@ -53,25 +53,22 @@ public class LinkedInScraperService : IJobBoardScraper
                 // Wait for the page DOM to be ready
                 await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
                 
-                // LinkedIn frequently changes input IDs. We will try all common variations, ensuring we only target visible elements.
-                var emailSelector = "input#username:visible, input#session_key:visible, input[name='session_key']:visible, input[type='email']:visible, input[autocomplete='username']:visible";
-                var passSelector = "input#password:visible, input#session_password:visible, input[name='session_password']:visible, input[type='password']:visible, input[autocomplete='current-password']:visible";
+                // Give it a moment to process potential automatic redirects (if a session exists)
+                await Task.Delay(3000);
                 
-                // Wait for at least one of these to appear
-                await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
-                
-                await page.FillAsync(emailSelector, _email);
-                await page.FillAsync(passSelector, _password);
-                
-                // Try to click the sign-in button or fall back to pressing Enter on the password field
-                try
+                if (!page.Url.Contains("feed") && !page.Url.Contains("checkpoint"))
                 {
-                    var submitSelector = "button[type='submit']:visible, button.btn__primary--large:visible, form.login__form button:visible, button[aria-label='Sign in']:visible";
-                    await page.ClickAsync(submitSelector, new PageClickOptions { Timeout = 5000 });
-                }
-                catch (Exception)
-                {
-                    _logger.LogWarning("Submit button click timed out. Pressing Enter on the password input field instead...");
+                    // LinkedIn frequently changes input IDs. We will try all common variations, ensuring we only target visible elements.
+                    var emailSelector = "input#username:visible, input#session_key:visible, input[name='session_key']:visible, input[type='email']:visible, input[autocomplete='username']:visible";
+                    var passSelector = "input#password:visible, input#session_password:visible, input[name='session_password']:visible, input[type='password']:visible, input[autocomplete='current-password']:visible";
+                    
+                    // Wait for at least one of these to appear
+                    await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
+                    
+                    await page.FillAsync(emailSelector, _email);
+                    await page.FillAsync(passSelector, _password);
+                    
+                    // Press Enter on the password field instead of looking for brittle submit buttons
                     await page.PressAsync(passSelector, "Enter");
                 }
                 
@@ -129,24 +126,25 @@ public class LinkedInScraperService : IJobBoardScraper
                 await page.GotoAsync(searchUrl);
 
                 // Wait for the search results to populate
-                try
-                {
-                    await page.WaitForSelectorAsync(".search-results-container", new PageWaitForSelectorOptions { Timeout = 10000 });
-                }
-                catch (TimeoutException)
-                {
-                    _logger.LogWarning("No search results found for {Keyword}", keyword);
-                    continue;
-                }
-
-                // Give it a moment to render initial posts
-                await Task.Delay(3000);
+                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                
+                // Wait for SPA to render posts
+                await Task.Delay(6000);
 
                 // Scroll down to load more posts until we have nearly 50 posts (up to a max of 10 scrolls to avoid hanging)
                 int maxScrolls = 10;
                 int scrollCount = 0;
-                var postElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                
+                // Broadened selectors for LinkedIn's changing DOM
+                var postSelector = ".feed-shared-update-v2, .reusable-search__result-container, li.reusable-search__result-container, div.search-hit--post, .entity-result, div[data-urn*='activity']";
+                var postElements = await page.QuerySelectorAllAsync(postSelector);
                 _logger.LogInformation("Initially found {Count} posts for keyword {Keyword}.", postElements.Count, keyword);
+
+                if (postElements.Count == 0)
+                {
+                    _logger.LogWarning("No search results found for {Keyword} using current selectors.", keyword);
+                    continue;
+                }
 
                 while (postElements.Count < 50 && scrollCount < maxScrolls)
                 {
@@ -158,7 +156,7 @@ public class LinkedInScraperService : IJobBoardScraper
                     // Wait for new posts to load and render
                     await Task.Delay(2500);
 
-                    var currentElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                    var currentElements = await page.QuerySelectorAllAsync(postSelector);
                     
                     // If no new elements were loaded after a scroll, try a small jog/nudge to trigger lazy loading
                     if (currentElements.Count == postElements.Count)
@@ -168,7 +166,7 @@ public class LinkedInScraperService : IJobBoardScraper
                         await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
                         await Task.Delay(2000);
                         
-                        currentElements = await page.QuerySelectorAllAsync(".feed-shared-update-v2");
+                        currentElements = await page.QuerySelectorAllAsync(postSelector);
                         if (currentElements.Count == postElements.Count)
                         {
                             _logger.LogInformation("No more posts available to load for this search.");
@@ -186,12 +184,21 @@ public class LinkedInScraperService : IJobBoardScraper
                 {
                     // Extract post URN (unique ID) to build the URL
                     var dataUrn = await element.GetAttributeAsync("data-urn");
+                    if (string.IsNullOrEmpty(dataUrn))
+                    {
+                        // Sometimes the urn is nested deeper inside the container
+                        var childWithUrn = await element.QuerySelectorAsync("[data-urn]");
+                        if (childWithUrn != null)
+                        {
+                            dataUrn = await childWithUrn.GetAttributeAsync("data-urn");
+                        }
+                    }
                     if (string.IsNullOrEmpty(dataUrn)) continue;
 
                     var url = $"https://www.linkedin.com/feed/update/{dataUrn}";
 
                     // Extract text (usually inside span with dir="ltr")
-                    var textElement = await element.QuerySelectorAsync(".update-components-text span[dir='ltr']");
+                    var textElement = await element.QuerySelectorAsync(".update-components-text span[dir='ltr'], .feed-shared-update-v2__description, .break-words, .entity-result__summary, .feed-shared-text");
                     var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
 
                     if (!string.IsNullOrWhiteSpace(rawText))
