@@ -8,6 +8,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from ..models import ScoutedJob, ScoutedJobStatus, UserJobPreferences, UserProfile, JobPost
+from ..playwright_runner import run_playwright
 from .auto_apply_service import AutoApplyService
 from .gemini_service import GeminiService
 
@@ -52,7 +53,8 @@ class JobScoutManager:
         for scraper in self._scrapers:
             logger.info("Starting %s scrape...", scraper.board_name)
             try:
-                jobs = await scraper.scrape_posts(SEARCH_KEYWORDS)
+                # Playwright needs a Proactor loop on Windows — run it in an isolated thread/loop.
+                jobs = await run_playwright(lambda s=scraper: s.scrape_posts(SEARCH_KEYWORDS))
                 all_scraped.extend(jobs)
                 logger.info("%s: %d raw posts scraped.", scraper.board_name, len(jobs))
             except Exception as ex:  # noqa: BLE001

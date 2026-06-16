@@ -12,7 +12,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal, get_db
-from ..models import GeneratedEmail, JobPost, JobSource, JobStatus, Resume, ScoutedJob, ScoutedJobStatus, UserProfile
+from ..models import JobPost, JobSource, JobStatus, Resume, ScoutedJob, ScoutedJobStatus, UserProfile
+from ..playwright_runner import run_playwright
 from ..services.factory import build_services
 from ..services.telegram_progress_tracker import TelegramProgressTracker as Tracker
 from ..templating import render
@@ -189,7 +190,7 @@ async def apply_scouted_job(id: int, db: Session = Depends(get_db)):
             if is_external and profile is not None and sj is not None:
                 Tracker.update_progress(999, f"Step 1: Launching Direct Apply on {board}... ⏳")
                 try:
-                    success, message = await services.direct_apply.apply(sj, profile, resume_path)
+                    success, message = await run_playwright(lambda: services.direct_apply.apply(sj, profile, resume_path))
                     Tracker.update_progress(
                         999,
                         f"Step 1: Applied directly on {board} ✅" if success else f"Step 1: Direct apply on {board} — {message} ⚠️",
