@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+    .preview-container { display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start; font-family:Inter,-apple-system,sans-serif; }
+    .preview-sidebar { position:sticky; top:calc(68px + 16px); }
+    .preview-main { min-width:0; }
+    .ep-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:22px; margin-bottom:16px; transition:border-color .2s; }
+    .ep-card:last-child { margin-bottom:0; }
+    .sb-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; color:var(--text-muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .sb-section-title i { font-size:13px; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .detail-item { margin-bottom:14px; } .detail-item:last-of-type { margin-bottom:0; }
+    .detail-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); display:block; margin-bottom:3px; }
+    .detail-value { font-size:13.5px; color:var(--text-primary); font-weight:500; display:block; line-height:1.5; }
+    .detail-value i { font-size:12px; color:var(--text-muted); margin-right:3px; }
+    .detail-divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
+    .score-display { display:flex; gap:20px; justify-content:center; align-items:flex-start; padding:8px 0 4px; }
+    .score-item { text-align:center; display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .score-circle { width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:3px solid; flex-direction:column; gap:1px; }
+    .score-high { border-color:var(--success); background:var(--success-bg); box-shadow:0 0 18px rgba(34,197,94,0.22); }
+    .score-mid { border-color:var(--warning); background:var(--warning-bg); box-shadow:0 0 18px rgba(245,158,11,0.22); }
+    .score-low { border-color:var(--danger); background:var(--danger-bg); box-shadow:0 0 18px rgba(239,68,68,0.22); }
+    .score-number { font-size:22px; font-weight:800; line-height:1; letter-spacing:-1px; }
+    .score-high .score-number { color:#4ade80; } .score-mid .score-number { color:#fbbf24; } .score-low .score-number { color:#f87171; }
+    .score-label { font-size:11px; color:var(--text-muted); font-weight:600; text-align:center; line-height:1.2; letter-spacing:0.2px; }
+    .skills-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .skill-tag { display:inline-flex; align-items:center; padding:3px 9px; border-radius:var(--radius-sm); background:rgba(99,102,241,0.10); color:#a5b4fc; font-size:11px; font-weight:500; border:1px solid rgba(99,102,241,0.22); line-height:1.5; }
+    .source-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; background:rgba(99,102,241,0.10); color:#a5b4fc; border:1px solid rgba(99,102,241,0.22); }
+    .source-image { width:100%; border-radius:var(--radius-md); border:1px solid var(--border); display:block; }
+    .email-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:26px; }
+    .email-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:18px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .email-card-header h5 { font-size:17px; font-weight:700; margin:0; display:flex; align-items:center; gap:9px; color:var(--text-primary); letter-spacing:-0.4px; }
+    .email-card-header h5 i { font-size:19px; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .email-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+    .ep-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:999px; font-size:11.5px; font-weight:600; letter-spacing:0.1px; white-space:nowrap; }
+    .ep-badge-sent { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.25); }
+    .ep-badge-approved { background:rgba(99,102,241,0.12); color:#a5b4fc; border:1px solid rgba(99,102,241,0.28); }
+    .ep-badge-draft { background:rgba(245,158,11,0.10); color:#fbbf24; border:1px solid rgba(245,158,11,0.25); }
+    .ep-badge-opened { background:var(--success-bg); color:#4ade80; border:1px solid rgba(34,197,94,0.25); }
+    .ep-warning { display:flex; align-items:flex-start; gap:10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.28); border-radius:var(--radius-md); color:#fbbf24; font-size:13px; padding:12px 14px; margin-bottom:18px; line-height:1.55; }
+    .ep-warning i { flex-shrink:0; margin-top:2px; }
+    .email-field { margin-bottom:18px; }
+    .email-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.1px; color:var(--text-muted); margin-bottom:7px; display:block; }
+    .email-input, .email-textarea { background:#0f0f16 !important; border:1px solid rgba(255,255,255,0.09) !important; color:var(--text-primary) !important; border-radius:var(--radius-md) !important; width:100%; transition:border-color .15s,box-shadow .15s; }
+    .email-input { font-size:14px !important; padding:10px 14px !important; }
+    .email-textarea { font-size:13.5px !important; line-height:1.7 !important; resize:vertical; font-family:'JetBrains Mono','Fira Code','Courier New',monospace !important; padding:13px 14px !important; }
+    .email-input:focus, .email-textarea:focus { border-color:var(--accent-violet) !important; box-shadow:var(--glow-sm) !important; outline:none !important; background:#12121a !important; }
+    .email-input[readonly], .email-textarea[readonly] { background:rgba(9,9,11,0.60) !important; color:var(--text-secondary) !important; cursor:default; }
+    .email-input.ep-input-warn { border-color:rgba(245,158,11,0.50) !important; }
+    .ep-error { display:flex; align-items:flex-start; gap:10px; background:var(--danger-bg); border:1px solid rgba(239,68,68,0.28); border-radius:var(--radius-md); color:#f87171; font-size:13px; padding:12px 14px; margin-top:4px; line-height:1.5; }
+    .ep-error i { flex-shrink:0; margin-top:2px; }
+    .tone-section { background:rgba(9,9,11,0.50); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:20px; }
+    .tone-section-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-muted); margin-bottom:11px; display:flex; align-items:center; gap:6px; }
+    .tone-section-label i { font-size:12px; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .tone-btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+    .tone-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 16px; border-radius:var(--radius-md); font-size:13px; font-weight:500; cursor:pointer; border:1px solid rgba(255,255,255,0.09); background:transparent; color:var(--text-secondary); transition:all .15s; line-height:1.4; font-family:Inter,-apple-system,sans-serif; }
+    .tone-btn:hover { background:rgba(255,255,255,0.06); color:var(--text-primary); border-color:var(--border-hover); box-shadow:var(--glow-sm); }
+    .tone-active-professional { background:rgba(99,102,241,0.14); color:#a5b4fc; border-color:rgba(99,102,241,0.40) !important; box-shadow:0 0 10px rgba(99,102,241,0.15); }
+    .tone-active-enthusiastic { background:rgba(245,158,11,0.12); color:#fbbf24; border-color:rgba(245,158,11,0.35) !important; box-shadow:0 0 10px rgba(245,158,11,0.12); }
+    .tone-active-concise { background:var(--info-bg); color:#93c5fd; border-color:rgba(59,130,246,0.35) !important; box-shadow:0 0 10px rgba(59,130,246,0.12); }
+    .email-actions { display:flex; gap:10px; margin-top:24px; padding-top:20px; border-top:1px solid var(--border); flex-wrap:wrap; align-items:center; }
+    .email-actions .ms-auto { margin-left:auto; }
+    .ep-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 18px; border-radius:var(--radius-md); font-size:13.5px; font-weight:600; cursor:pointer; border:none; transition:all .18s; white-space:nowrap; font-family:Inter,-apple-system,sans-serif; text-decoration:none; }
+    .ep-btn-outline { background:transparent; color:var(--text-secondary); border:1px solid rgba(255,255,255,0.12); }
+    .ep-btn-outline:hover { background:rgba(255,255,255,0.06); color:var(--text-primary); border-color:rgba(255,255,255,0.20); }
+    .ep-btn-approve { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.30); }
+    .ep-btn-approve:hover { background:rgba(34,197,94,0.20); box-shadow:0 0 14px rgba(34,197,94,0.20); color:#4ade80; }
+    .ep-btn-glow { background:var(--grad-primary); color:#fff; box-shadow:var(--glow-sm); }
+    .ep-btn-glow:hover { box-shadow:var(--glow-violet); filter:brightness(1.08); color:#fff; }
+    .ep-btn-warning { background:var(--warning-bg); color:#fbbf24; border:1px solid rgba(245,158,11,0.30); }
+    .ep-btn-warning:hover { background:rgba(245,158,11,0.20); box-shadow:0 0 14px rgba(245,158,11,0.18); color:#fbbf24; }
+    .ep-btn-back { background:transparent; color:var(--text-secondary); border:1px solid rgba(255,255,255,0.10); }
+    .ep-btn-back:hover { background:rgba(255,255,255,0.05); color:var(--text-primary); border-color:rgba(255,255,255,0.18); }
+    .ep-divider { border:none; border-top:1px solid var(--border); margin:28px 0 22px; }
+    .reply-card { border-radius:var(--radius-md); padding:20px; border-left:4px solid; background:rgba(9,9,11,0.55); border-top:1px solid var(--border); border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+    .reply-card-interview { border-left-color:rgba(99,102,241,0.70); }
+    .reply-card-rejected { border-left-color:rgba(239,68,68,0.60); }
+    .reply-card-interested { border-left-color:rgba(251,191,36,0.60); }
+    .reply-card-default { border-left-color:rgba(148,163,184,0.35); }
+    .reply-card-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:4px; flex-wrap:wrap; }
+    .reply-card-title { font-size:15px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px; margin:0; }
+    .reply-card-title i { color:#60a5fa; font-size:16px; }
+    .reply-card-meta { font-size:12px; color:var(--text-muted); margin-bottom:12px; line-height:1.4; }
+    .reply-card-meta strong { color:var(--text-secondary); font-weight:600; }
+    .reply-snippet { background:transparent; border:none; padding:0; margin:0; font-size:13px; color:var(--text-secondary); white-space:pre-wrap; line-height:1.65; max-height:200px; overflow-y:auto; font-family:Inter,-apple-system,sans-serif; }
+    .tracking-card { background:rgba(9,9,11,0.50); border:1px solid var(--border); border-radius:var(--radius-md); padding:20px 22px; }
+    .tracking-card-title { font-size:14px; font-weight:700; color:var(--text-primary); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .tracking-card-title i { font-size:15px; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .tracking-select, .tracking-input { background:#0f0f16 !important; border:1px solid rgba(255,255,255,0.09) !important; color:var(--text-primary) !important; border-radius:var(--radius-md) !important; font-size:13.5px !important; padding:9px 13px !important; width:100%; transition:border-color .15s,box-shadow .15s; font-family:Inter,-apple-system,sans-serif; }
+    .tracking-select option { background:#16161f; color:var(--text-primary); }
+    .tracking-select:focus, .tracking-input:focus { border-color:var(--accent-violet) !important; box-shadow:var(--glow-sm) !important; outline:none !important; }
+    .tracking-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); display:block; margin-bottom:6px; }
+    .ep-empty { text-align:center; padding:60px 32px; }
+    .ep-empty-icon { width:76px; height:76px; border-radius:50%; background:rgba(124,58,237,0.10); border:1px solid rgba(124,58,237,0.22); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
+    .ep-empty-icon i { font-size:34px; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .ep-empty h3 { font-size:19px; font-weight:700; color:var(--text-primary); margin-bottom:8px; letter-spacing:-0.3px; }
+    .ep-empty p { font-size:14px; color:var(--text-secondary); margin-bottom:0; max-width:340px; margin-inline:auto; line-height:1.6; }
+    @media (max-width:991.98px) {
+        .preview-container { grid-template-columns:1fr; }
+        .preview-sidebar { position:static; }
+        .email-actions { flex-direction:column; align-items:stretch; }
+        .email-actions .ep-btn, .email-actions form .ep-btn, .email-actions form, .email-actions a.ep-btn { width:100%; justify-content:center; }
+        .email-actions .ms-auto { margin-left:0; }
+        .tone-btn-group { flex-direction:column; }
+        .tone-btn { justify-content:center; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+{% set email = job.GeneratedEmail %}
+<div class="preview-container">
+    <div class="preview-sidebar">
+        <div class="ep-card">
+            <div class="sb-section-title"><i class="bi bi-building"></i> Job Details</div>
+            <div class="detail-item"><span class="detail-label">Company</span><span class="detail-value">{{ job.CompanyName }}</span></div>
+            <div class="detail-item"><span class="detail-label">Role</span><span class="detail-value">{{ job.Role }}</span></div>
+            {% if job.Location %}<div class="detail-item"><span class="detail-label">Location</span><span class="detail-value"><i class="bi bi-geo-alt"></i>{{ job.Location }}</span></div>{% endif %}
+            {% if job.ExperienceRequired %}<div class="detail-item"><span class="detail-label">Experience</span><span class="detail-value">{{ job.ExperienceRequired }}</span></div>{% endif %}
+            {% if job.RequiredSkills %}
+            <div class="detail-item"><span class="detail-label">Required Skills</span>
+                <div class="skills-tags">{% for skill in job.RequiredSkills.split(',') %}{% if skill.strip() %}<span class="skill-tag">{{ skill.strip() }}</span>{% endif %}{% endfor %}</div>
+            </div>
+            {% endif %}
+            <div class="detail-item"><span class="detail-label">Source</span>
+                <span class="source-badge"><i class="bi bi-{{ 'telegram' if job.Source.value == 'Telegram' else 'cloud-arrow-up' }}"></i> {{ job.Source.value }}</span>
+            </div>
+            <hr class="detail-divider" />
+            <div class="score-display">
+                <div class="score-item"><div class="score-circle {{ 'score-high' if job.AtsScore >= 70 else ('score-mid' if job.AtsScore >= 40 else 'score-low') }}"><span class="score-number">{{ job.AtsScore }}</span></div><span class="score-label">ATS Score</span></div>
+                <div class="score-item"><div class="score-circle {{ 'score-high' if job.SkillMatchPercentage >= 70 else ('score-mid' if job.SkillMatchPercentage >= 40 else 'score-low') }}"><span class="score-number">{{ job.SkillMatchPercentage }}%</span></div><span class="score-label">Skill Match</span></div>
+            </div>
+        </div>
+        {% if job.ImagePath %}
+        <div class="ep-card"><div class="sb-section-title"><i class="bi bi-image"></i> Source Image</div><img src="{{ job.ImagePath }}" alt="Job post screenshot" class="source-image" /></div>
+        {% endif %}
+    </div>
+
+    <div class="preview-main">
+        {% if email %}
+        <div class="email-card">
+            <div class="email-card-header">
+                <h5><i class="bi bi-envelope-paper-fill"></i> Generated Email</h5>
+                <div class="email-status">
+                    {% if email.IsSent %}<span class="ep-badge ep-badge-sent"><i class="bi bi-check-circle-fill"></i> Sent {{ email.SentAt | ist_string('%b %d, %H:%M', true) }}</span>
+                    {% elif email.IsApproved %}<span class="ep-badge ep-badge-approved"><i class="bi bi-check2-circle"></i> Approved</span>
+                    {% else %}<span class="ep-badge ep-badge-draft"><i class="bi bi-pencil-square"></i> Draft</span>{% endif %}
+                    {% if email.OpenedAt %}<span class="ep-badge ep-badge-opened" title="Opened {{ email.OpenedAt | ist_string('%b %d, %H:%M', true) }}"><i class="bi bi-eye-fill"></i> Opened {{ email.OpenedAt | ist_string('%b %d, %H:%M', true) }}</span>{% endif %}
+                    {% if email.RepliedAt %}
+                    {% set rc = email.ReplyClassification %}
+                    {% set bstyle = {'interview':'background:rgba(99,102,241,0.14);color:#a5b4fc;border:1px solid rgba(99,102,241,0.30)','rejected':'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25)','interested':'background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25)'}.get(rc,'background:rgba(148,163,184,0.10);color:#94a3b8;border:1px solid rgba(148,163,184,0.20)') %}
+                    {% set bicon = {'interview':'bi-telephone-fill','rejected':'bi-x-circle-fill','interested':'bi-star-fill'}.get(rc,'bi-envelope-open-fill') %}
+                    {% set btext = {'interview':'Interview Request','rejected':'Rejected','interested':'Interested'}.get(rc,'Reply Received') %}
+                    <span class="ep-badge" style="{{ bstyle }}" title="Replied {{ email.RepliedAt | ist_string('%b %d, %H:%M', true) }}"><i class="bi {{ bicon }}"></i> {{ btext }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not email.IsSent and not (email.RecipientEmail and email.RecipientEmail.strip()) %}
+            <div class="ep-warning"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>No recruiter email found.</strong> This job post did not contain a recruiter email address and our automatic search couldn't find one. Please enter it manually in the <strong>To</strong> field below before sending.</div></div>
+            {% endif %}
+
+            <form method="post" id="emailForm">
+                <div class="email-field"><label class="email-label">To</label>
+                    <input type="email" name="recipientEmail" class="email-input {{ 'ep-input-warn' if (not email.RecipientEmail or not email.RecipientEmail.strip()) and not email.IsSent else '' }}" value="{{ email.RecipientEmail }}" id="recipientEmail" {% if email.IsSent %}readonly{% endif %} /></div>
+                <div class="email-field"><label class="email-label">Subject</label>
+                    <input type="text" name="subject" class="email-input" value="{{ email.Subject }}" id="subjectInput" {% if email.IsSent %}readonly{% endif %} /></div>
+                <div class="email-field"><label class="email-label">Body</label>
+                    <textarea name="body" class="email-textarea" id="bodyInput" rows="16" {% if email.IsSent %}readonly{% endif %}>{{ email.Body }}</textarea></div>
+                {% if email.ErrorMessage %}
+                <div class="ep-error"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Last Error:</strong> {{ email.ErrorMessage }} <span style="color:var(--text-muted);margin-left:8px;">(Retry count: {{ email.RetryCount }})</span></div></div>
+                {% endif %}
+            </form>
+
+            {% if not email.IsSent %}
+            <div class="tone-section">
+                <div class="tone-section-label"><i class="bi bi-palette"></i> Rewrite Tone</div>
+                <div class="tone-btn-group">
+                    {% for tone, icon, label, cls in [('professional','bi-briefcase','Professional','tone-active-professional'),('enthusiastic','bi-fire','Enthusiastic','tone-active-enthusiastic'),('concise','bi-lightning-charge','Concise','tone-active-concise')] %}
+                    <form method="post" action="/Email/Regenerate" style="display:contents;">
+                        <input type="hidden" name="id" value="{{ job.Id }}" />
+                        <input type="hidden" name="tone" value="{{ tone }}" />
+                        <button type="submit" class="tone-btn {{ cls if email.Tone == tone else '' }}"><i class="bi {{ icon }}"></i> {{ label }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="email-actions">
+                {% if not email.IsSent %}
+                <form method="post" action="/Email/Update">
+                    <input type="hidden" name="id" value="{{ job.Id }}" />
+                    <input type="hidden" name="subject" id="updateSubject" />
+                    <input type="hidden" name="body" id="updateBody" />
+                    <input type="hidden" name="recipientEmail" id="updateRecipient" />
+                    <button type="submit" class="ep-btn ep-btn-outline" onclick="syncFormFields('update')"><i class="bi bi-pencil-square"></i> Save Changes</button>
+                </form>
+                {% if not email.IsApproved %}
+                <form method="post" action="/Email/Approve"><input type="hidden" name="id" value="{{ job.Id }}" /><button type="submit" class="ep-btn ep-btn-approve"><i class="bi bi-check-lg"></i> Approve</button></form>
+                {% endif %}
+                <form method="post" action="/Email/Send"><input type="hidden" name="id" value="{{ job.Id }}" /><button type="submit" class="ep-btn ep-btn-glow" onclick="return confirm('Send this email to {{ email.RecipientEmail }}?')"><i class="bi bi-send-fill"></i> Send Email</button></form>
+                {% if email.ErrorMessage %}
+                <form method="post" action="/Email/Retry"><input type="hidden" name="id" value="{{ job.Id }}" /><button type="submit" class="ep-btn ep-btn-warning"><i class="bi bi-arrow-clockwise"></i> Retry</button></form>
+                {% endif %}
+                {% endif %}
+                <a href="/Dashboard/Index" class="ep-btn ep-btn-back ms-auto"><i class="bi bi-arrow-left"></i> Back</a>
+            </div>
+
+            {% if email.RepliedAt and email.ReplySnippet %}
+            {% set rcc = {'interview':'reply-card-interview','rejected':'reply-card-rejected','interested':'reply-card-interested'}.get(email.ReplyClassification,'reply-card-default') %}
+            <hr class="ep-divider" />
+            <div class="reply-card {{ rcc }}">
+                <div class="reply-card-header-row"><p class="reply-card-title"><i class="bi bi-envelope-open-fill"></i> Recruiter Reply</p></div>
+                <p class="reply-card-meta">Received {{ email.RepliedAt | ist_string('%b %d, %Y %H:%M', true) }} &nbsp;&middot;&nbsp; <strong>{{ email.ReplySubject or 'No subject' }}</strong></p>
+                <pre class="reply-snippet">{{ email.ReplySnippet }}</pre>
+            </div>
+            {% endif %}
+
+            {% set tracking_statuses = ['Sent','FollowUpSent','InterviewScheduled','Rejected','Offered','Ghosted'] %}
+            {% if email.IsSent or job.Status.value in tracking_statuses %}
+            <hr class="ep-divider" />
+            <div class="tracking-card">
+                <div class="tracking-card-title"><i class="bi bi-person-lines-fill"></i> Application Status Tracking</div>
+                <form method="post" action="/Email/UpdateStatus">
+                    <input type="hidden" name="id" value="{{ job.Id }}" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-5"><label class="tracking-label">Current Status</label>
+                            <select name="status" class="tracking-select">
+                                <option value="Sent" {% if job.Status.value in ['Sent','FollowUpSent'] %}selected{% endif %}>Sent / Awaiting Response</option>
+                                <option value="InterviewScheduled" {% if job.Status.value == 'InterviewScheduled' %}selected{% endif %}>Interview Scheduled</option>
+                                <option value="Offered" {% if job.Status.value == 'Offered' %}selected{% endif %}>Offer Received</option>
+                                <option value="Rejected" {% if job.Status.value == 'Rejected' %}selected{% endif %}>Rejected</option>
+                                <option value="Ghosted" {% if job.Status.value == 'Ghosted' %}selected{% endif %}>Ghosted (No Response)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5"><label class="tracking-label">Notes</label><input type="text" name="notes" class="tracking-input" placeholder="e.g. Interview on Thursday at 2 PM" value="{{ job.ResponseNotes or '' }}" /></div>
+                        <div class="col-md-2"><button type="submit" class="ep-btn ep-btn-glow" style="width:100%;justify-content:center;">Update</button></div>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="email-card">
+            <div class="ep-empty">
+                <div class="ep-empty-icon"><i class="bi bi-envelope-x"></i></div>
+                <h3>No Email Generated</h3>
+                <p>Upload your resume first so the AI can generate a matching email.</p>
+                <a href="/Resume/Index" class="ep-btn ep-btn-glow" style="margin-top:20px;display:inline-flex;"><i class="bi bi-file-earmark-person"></i> Setup Resume</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    function syncFormFields(type) {
+        if (type === 'update') {
+            document.getElementById('updateSubject').value = document.getElementById('subjectInput').value;
+            document.getElementById('updateBody').value = document.getElementById('bodyInput').value;
+            document.getElementById('updateRecipient').value = document.getElementById('recipientEmail').value;
+        }
+    }
+</script>
+{% endblock %}

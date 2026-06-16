@@ -1,0 +1,28 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.17
+itsdangerous==2.2.0
+
+# Database (PostgreSQL / Supabase) — sync SQLAlchemy
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
+
+# HTTP client (Gemini, URL fetch, Telegram, website scraping)
+httpx==0.28.1
+
+# Email: SMTP send + IMAP reply monitoring
+# (smtplib/imaplib are stdlib; we use these for robust IMAP parsing)
+imap-tools==1.7.4
+
+# Browser automation (LinkedIn / Naukri / Indeed scrapers + direct apply)
+playwright==1.49.1
+
+# Background scheduling (replaces IHostedService background workers)
+APScheduler==3.11.0
+
+# Config / settings
+pydantic==2.10.3
+pydantic-settings==2.7.0
+python-dotenv==1.0.1

@@ -38,7 +38,9 @@ public class LinkedInScraperService : IJobBoardScraper
             var context = await browser.NewContextAsync(new BrowserNewContextOptions
             {
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                ViewportSize = new ViewportSize { Width = 1280, Height = 720 }
+                ViewportSize = new ViewportSize { Width = 1280, Height = 720 },
+                // Needed so we can read each post's permalink from the clipboard after "Copy link to post".
+                Permissions = new[] { "clipboard-read", "clipboard-write" }
             });
             var page = await context.NewPageAsync();
 
@@ -127,22 +129,40 @@ public class LinkedInScraperService : IJobBoardScraper
 
                 // Wait for the search results to populate
                 await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-                
-                // Wait for SPA to render posts
-                await Task.Delay(6000);
+
+                // LinkedIn's content search is now server-driven UI with randomized class names and NO
+                // inline post URNs/permalinks. Each post is a role="listitem" containing an
+                // [data-testid="expandable-text-box"]; these structural/testid hooks survive redesigns,
+                // unlike the old obfuscated CSS classes. The permalink is fetched per-post via its
+                // control menu ("Copy link to post") since it isn't present in the DOM.
+                var postSelector = "div[role='listitem']:has([data-testid='expandable-text-box'])";
+
+                // Actually WAIT for at least one result to render instead of a blind fixed delay.
+                try
+                {
+                    await page.WaitForSelectorAsync(postSelector, new PageWaitForSelectorOptions { Timeout = 15000 });
+                }
+                catch (TimeoutException)
+                {
+                    // Nothing rendered within the window — fall through to the diagnostic capture below.
+                }
 
                 // Scroll down to load more posts until we have nearly 50 posts (up to a max of 10 scrolls to avoid hanging)
                 int maxScrolls = 10;
                 int scrollCount = 0;
-                
-                // Broadened selectors for LinkedIn's changing DOM
-                var postSelector = ".feed-shared-update-v2, .reusable-search__result-container, li.reusable-search__result-container, div.search-hit--post, .entity-result, div[data-urn*='activity']";
+
                 var postElements = await page.QuerySelectorAllAsync(postSelector);
                 _logger.LogInformation("Initially found {Count} posts for keyword {Keyword}.", postElements.Count, keyword);
 
                 if (postElements.Count == 0)
                 {
-                    _logger.LogWarning("No search results found for {Keyword} using current selectors.", keyword);
+                    // Capture exactly what LinkedIn served so we can see the real DOM / detect a wall or empty state,
+                    // instead of guessing at class names. Files are overwritten each run, keyed by keyword.
+                    await CaptureDebugStateAsync(page, keyword);
+                    _logger.LogWarning(
+                        "No search results found for {Keyword}. Saved screenshot + HTML to scrape-debug/ for inspection. " +
+                        "Common causes: LinkedIn changed result class names, a 'restricted activity' wall, or a genuine empty result set.",
+                        keyword);
                     continue;
                 }
 
@@ -182,27 +202,21 @@ public class LinkedInScraperService : IJobBoardScraper
                 
                 foreach (var element in postElements)
                 {
-                    // Extract post URN (unique ID) to build the URL
-                    var dataUrn = await element.GetAttributeAsync("data-urn");
-                    if (string.IsNullOrEmpty(dataUrn))
+                    try
                     {
-                        // Sometimes the urn is nested deeper inside the container
-                        var childWithUrn = await element.QuerySelectorAsync("[data-urn]");
-                        if (childWithUrn != null)
+                        // Post text — the stable testid hook.
+                        var textElement = await element.QuerySelectorAsync("[data-testid='expandable-text-box']");
+                        var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
+                        if (string.IsNullOrWhiteSpace(rawText)) continue;
+
+                        // Permalink isn't in the DOM — get it via the post's control menu -> "Copy link to post".
+                        var url = await GetPostUrlViaMenuAsync(page, element);
+                        if (string.IsNullOrEmpty(url))
                         {
-                            dataUrn = await childWithUrn.GetAttributeAsync("data-urn");
+                            _logger.LogDebug("Could not resolve a permalink for a '{Keyword}' post; skipping it.", keyword);
+                            continue;
                         }
-                    }
-                    if (string.IsNullOrEmpty(dataUrn)) continue;
 
-                    var url = $"https://www.linkedin.com/feed/update/{dataUrn}";
-
-                    // Extract text (usually inside span with dir="ltr")
-                    var textElement = await element.QuerySelectorAsync(".update-components-text span[dir='ltr'], .feed-shared-update-v2__description, .break-words, .entity-result__summary, .feed-shared-text");
-                    var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
-
-                    if (!string.IsNullOrWhiteSpace(rawText))
-                    {
                         foundJobs.Add(new ScoutedJob
                         {
                             LinkedInUrl = url,
@@ -210,6 +224,10 @@ public class LinkedInScraperService : IJobBoardScraper
                             KeywordMatched = keyword,
                             Board = BoardName
                         });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to extract a post for keyword {Keyword}; continuing.", keyword);
                     }
                 }
                 
@@ -230,5 +248,76 @@ public class LinkedInScraperService : IJobBoardScraper
         }
 
         return foundJobs;
+    }
+
+    /// <summary>
+    /// Resolves a post's permalink the only way LinkedIn's new SDUI search exposes it: open the post's
+    /// control menu, click "Copy link to post", and read the URL back from the clipboard.
+    /// Returns null if the menu/link couldn't be found, leaving the page menu closed.
+    /// </summary>
+    private async Task<string?> GetPostUrlViaMenuAsync(IPage page, IElementHandle postElement)
+    {
+        try
+        {
+            // The "..." overflow button. aria-label is the stable hook: "Open control menu for post by {Author}".
+            var menuButton = await postElement.QuerySelectorAsync("button[aria-label*='Open control menu']");
+            if (menuButton == null) return null;
+
+            await menuButton.ScrollIntoViewIfNeededAsync();
+            await menuButton.ClickAsync();
+
+            // The menu renders in a portal at page level (not inside the post element), so query the page.
+            // Match the menu item by its visible text rather than a randomized class.
+            var copyItem = page.GetByText("Copy link to post", new PageGetByTextOptions { Exact = false });
+            await copyItem.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 4000 });
+            await copyItem.First.ClickAsync();
+
+            // LinkedIn shows a "Link copied" toast; the permalink is now on the clipboard.
+            await Task.Delay(400);
+            var url = await page.EvaluateAsync<string>("() => navigator.clipboard.readText()");
+
+            if (!string.IsNullOrWhiteSpace(url) && url.Contains("linkedin.com"))
+                return url.Trim();
+
+            return null;
+        }
+        catch (Exception)
+        {
+            // Menu didn't open or item not found — make sure any open menu is dismissed before the next post.
+            try { await page.Keyboard.PressAsync("Escape"); } catch { }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Dumps the current page screenshot and HTML to a scrape-debug/ folder so the real, current
+    /// LinkedIn DOM can be inspected when 0 results are found. This is the ground truth for updating
+    /// selectors (which LinkedIn rotates frequently) or spotting a login/activity wall vs an empty result set.
+    /// </summary>
+    private async Task CaptureDebugStateAsync(IPage page, string keyword)
+    {
+        try
+        {
+            var dir = Path.Combine(Directory.GetCurrentDirectory(), "scrape-debug");
+            Directory.CreateDirectory(dir);
+
+            // Safe file name from the keyword
+            var safe = string.Concat(keyword.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
+
+            await page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                Path = Path.Combine(dir, $"{safe}.png"),
+                FullPage = true
+            });
+
+            var html = await page.ContentAsync();
+            await File.WriteAllTextAsync(Path.Combine(dir, $"{safe}.html"), html);
+
+            _logger.LogInformation("Saved debug capture for '{Keyword}' (url: {Url}) to {Dir}", keyword, page.Url, dir);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to capture debug state for keyword {Keyword}", keyword);
+        }
     }
 }

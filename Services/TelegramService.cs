@@ -604,6 +604,46 @@ public class TelegramService
         try { await _httpClient.PostAsync($"https://api.telegram.org/bot{_botToken}/editMessageText", new StringContent(JsonConvert.SerializeObject(new { chat_id = chatId, message_id = messageId, text = newText, parse_mode = "HTML" }), Encoding.UTF8, "application/json")); } catch { }
     }
 
+    /// <summary>
+    /// Fast startup probe. Confirms api.telegram.org is reachable and the token works.
+    /// Uses a short timeout so a network/ISP block (e.g. Airtel DNS RPZ) fails fast and loudly
+    /// instead of hanging on HttpClient's default 100s timeout.
+    /// </summary>
+    public async Task<(bool Reachable, string Detail)> CheckConnectivityAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_botToken))
+            return (false, "No Telegram bot token configured (set Telegram:BotToken).");
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var resp = await _httpClient.GetAsync($"https://api.telegram.org/bot{_botToken}/getMe", cts.Token);
+            var body = await resp.Content.ReadAsStringAsync(cts.Token);
+            var json = JObject.Parse(body);
+            if (json["ok"]?.Value<bool>() == true)
+            {
+                var username = json["result"]?["username"]?.ToString();
+                return (true, $"Telegram API reachable (bot @{username}).");
+            }
+            return (false, $"Telegram API rejected the request: {body}");
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "Timed out reaching api.telegram.org. This usually means an ISP/network block " +
+                           "(e.g. Airtel DNS RPZ redirect, or IP-level firewall) rather than a code issue. " +
+                           "Fix: connect through a VPN / Cloudflare WARP, or switch to a different network.");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"Cannot reach api.telegram.org ({ex.Message}). Likely an ISP/network block — " +
+                           "try a VPN / Cloudflare WARP or a different network.");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Telegram connectivity check failed: {ex.Message}");
+        }
+    }
+
     public async Task<JObject?> GetBotInfoAsync() { try { return JObject.Parse(await _httpClient.GetStringAsync($"https://api.telegram.org/bot{_botToken}/getMe")); } catch { return null; } }
     public async Task<JObject?> GetWebhookInfoAsync() { try { return JObject.Parse(await _httpClient.GetStringAsync($"https://api.telegram.org/bot{_botToken}/getWebhookInfo")); } catch { return null; } }
     public async Task<bool> SetWebhookAsync(string url) { try { return JObject.Parse(await _httpClient.GetStringAsync($"https://api.telegram.org/bot{_botToken}/setWebhook?url={Uri.EscapeDataString(url)}&allowed_updates={Uri.EscapeDataString(JsonConvert.SerializeObject(new[] { "message", "callback_query" }))}"))["ok"]?.Value<bool>() ?? false; } catch { return false; } }

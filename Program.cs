@@ -164,6 +164,28 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Telegram connectivity probe — runs in background so it never delays startup.
+// Surfaces ISP/network blocks (e.g. Airtel DNS RPZ) with a clear warning instead of
+// silently hanging on outbound Bot API calls.
+_ = Task.Run(async () =>
+{
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var telegram = scope.ServiceProvider.GetRequiredService<TelegramService>();
+        var (reachable, detail) = await telegram.CheckConnectivityAsync();
+        if (reachable)
+            logger.LogInformation("Telegram connectivity OK — {Detail}", detail);
+        else
+            logger.LogWarning("TELEGRAM UNREACHABLE — {Detail}", detail);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Telegram connectivity probe could not run");
+    }
+});
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

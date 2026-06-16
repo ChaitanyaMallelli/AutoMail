@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+    .pr-card { background:#16161f; border:1px solid rgba(255,255,255,0.07); border-radius:20px; padding:32px; position:relative; overflow:hidden; min-height:540px; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+    .pr-card::before { content:''; position:absolute; inset:0 0 auto 0; height:2px; background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%); border-radius:20px 20px 0 0; }
+    .pr-orb { position:absolute; border-radius:50%; pointer-events:none; }
+    .pr-orb-1 { top:-80px; left:-80px; width:260px; height:260px; background:rgba(99,102,241,.1); filter:blur(70px); }
+    .pr-orb-2 { bottom:-80px; right:-80px; width:240px; height:240px; background:rgba(168,85,247,.08); filter:blur(70px); }
+    .pr-dot-grid { position:absolute; inset:0; opacity:.025; pointer-events:none; background-image:radial-gradient(rgba(99,102,241,.8) 1px,transparent 1px); background-size:22px 22px; }
+    .pr-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.07); margin-bottom:28px; position:relative; flex-wrap:wrap; gap:12px; }
+    .pr-header-icon { width:36px; height:36px; min-width:36px; border-radius:10px; background:rgba(99,102,241,.1); border:1px solid rgba(99,102,241,.25); display:flex; align-items:center; justify-content:center; font-size:17px; color:#a5b4fc; }
+    .pr-header-title { font-size:15px; font-weight:800; letter-spacing:-.3px; color:#f4f4f5; margin:0; }
+    .pr-header-sub { font-size:11px; color:#52525b; margin-top:2px; }
+    .pr-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.04em; }
+    .pr-badge-listening { background:rgba(245,158,11,.12); color:#f59e0b; border:1px solid rgba(245,158,11,.25); }
+    .pr-badge-running { background:rgba(99,102,241,.12); color:#a5b4fc; border:1px solid rgba(99,102,241,.3); }
+    .pr-badge-done { background:rgba(34,197,94,.12); color:#22c55e; border:1px solid rgba(34,197,94,.25); }
+    .pr-badge-failed { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
+    .pr-empty { display:flex; flex-direction:column; align-items:center; text-align:center; padding:48px 20px; position:relative; }
+    .pr-signal { position:relative; width:90px; height:90px; margin:0 auto 28px; }
+    .pr-signal-ring { position:absolute; inset:0; border-radius:50%; border:2px solid rgba(124,58,237,.25); animation:prSignalExpand 2.4s ease-out infinite; }
+    .pr-signal-ring:nth-child(2) { animation-delay:.8s; }
+    .pr-signal-ring:nth-child(3) { animation-delay:1.6s; }
+    @keyframes prSignalExpand { 0% { transform:scale(.5); opacity:.9; } 100% { transform:scale(1.5); opacity:0; } }
+    .pr-signal-core { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:36px; color:#a5b4fc; filter:drop-shadow(0 0 14px rgba(124,58,237,.5)); }
+    .pr-empty-title { font-size:20px; font-weight:800; color:#f4f4f5; margin-bottom:8px; }
+    .pr-empty-sub { font-size:14px; color:#a1a1aa; max-width:400px; line-height:1.7; margin-bottom:24px; }
+    .pr-btn-launch { background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%); color:#fff; border:none; border-radius:40px; padding:11px 26px; font-size:14px; font-weight:700; text-decoration:none; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:box-shadow .2s,transform .15s; }
+    .pr-btn-launch:hover { box-shadow:0 0 20px rgba(124,58,237,0.35); transform:translateY(-1px); color:#fff; }
+    .pr-info-box { padding:14px 16px; border-radius:12px; background:rgba(99,102,241,.06); border:1px solid rgba(99,102,241,.18); height:100%; transition:border-color .2s; }
+    .pr-info-box:hover { border-color:rgba(124,58,237,0.35); }
+    .pr-info-label { font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#52525b; display:block; margin-bottom:6px; }
+    .pr-info-value { font-size:16px; font-weight:800; color:#f4f4f5; }
+    .pipeline-stepper { display:flex; flex-direction:column; gap:0; position:relative; }
+    .pipeline-stepper::before { content:''; position:absolute; left:17px; top:20px; bottom:20px; width:2px; background:linear-gradient(to bottom,rgba(124,58,237,.4),rgba(99,102,241,.1)); border-radius:2px; }
+    .step-card { display:flex; align-items:flex-start; gap:16px; padding:14px 16px 14px 0; border-radius:12px; margin-left:0; position:relative; transition:background .2s,border-color .2s; }
+    .step-dot { width:36px; height:36px; min-width:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; position:relative; z-index:1; flex-shrink:0; transition:background .3s,box-shadow .3s; }
+    .step-header { font-size:13px; font-weight:700; color:#52525b; margin-bottom:3px; transition:color .3s; }
+    .step-subheader { font-size:12px; color:#52525b; line-height:1.55; transition:color .3s; }
+    .step-inactive .step-dot { background:rgba(255,255,255,.04); border:1.5px solid rgba(255,255,255,.1); color:#52525b; }
+    .step-inactive .step-header { color:#52525b; }
+    .step-inactive .step-subheader { color:#3f3f46; }
+    .step-active-now .step-dot { background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%); border:none; color:#fff; box-shadow:0 0 20px rgba(124,58,237,.35); animation:prStepPulse 1.8s ease-in-out infinite; }
+    .step-active-now .step-header { color:#a5b4fc; }
+    .step-active-now .step-subheader { color:#a1a1aa; }
+    @keyframes prStepPulse { 0%,100% { box-shadow:0 0 10px rgba(124,58,237,.4); } 50% { box-shadow:0 0 22px rgba(124,58,237,.7); } }
+    .step-completed .step-dot { background:rgba(34,197,94,.12); border:1.5px solid rgba(34,197,94,.4); color:#22c55e; }
+    .step-completed .step-header { color:#a1a1aa; }
+    .step-completed .step-subheader { color:#a1a1aa; }
+    .step-failed-now .step-dot { background:rgba(239,68,68,.12); border:1.5px solid rgba(239,68,68,.4); color:#ef4444; }
+    .step-failed-now .step-header { color:#fca5a5; }
+    .step-failed-now .step-subheader { color:#f87171; }
+    .pr-web-alert { margin-top:24px; padding:24px; border-radius:14px; text-align:center; background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.3); position:relative; overflow:hidden; }
+    .pr-web-alert::before { content:''; position:absolute; inset:0 0 auto 0; height:2px; background:linear-gradient(90deg,#3b82f6,#7c3aed); border-radius:14px 14px 0 0; }
+    .pr-web-alert-icon { font-size:30px; color:#93c5fd; margin-bottom:10px; filter:drop-shadow(0 0 10px rgba(59,130,246,.5)); animation:prEmailBounce 2s ease-in-out infinite; }
+    @keyframes prEmailBounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
+    .pr-web-alert-title { font-size:17px; font-weight:800; color:#f4f4f5; margin-bottom:6px; }
+    .pr-web-alert-sub { font-size:13px; color:#a1a1aa; max-width:360px; margin:0 auto 18px; line-height:1.65; }
+    .pr-btn-review { background:linear-gradient(135deg,#3b82f6,#7c3aed); color:#fff; border:none; border-radius:40px; padding:11px 26px; font-size:14px; font-weight:700; text-decoration:none; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:box-shadow .2s,transform .15s; }
+    .pr-btn-review:hover { box-shadow:0 0 20px rgba(59,130,246,.4); transform:translateY(-1px); color:#fff; }
+    .text-accent-light { color:#a5b4fc !important; }
+    .text-accent-light:hover { color:#c4b5fd !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8 col-lg-10">
+        <div class="pr-card">
+            <div class="pr-orb pr-orb-1"></div>
+            <div class="pr-orb pr-orb-2"></div>
+            <div class="pr-dot-grid"></div>
+            <div class="pr-header">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="pr-header-icon"><i class="bi bi-cpu-fill"></i></div>
+                    <div>
+                        <h5 class="pr-header-title">Telegram Automation Pipeline</h5>
+                        <div class="pr-header-sub">Polling every second &mdash; updates appear instantly</div>
+                    </div>
+                </div>
+                <span class="pr-badge pr-badge-listening" id="pipelineState">
+                    <span class="spinner-grow spinner-grow-sm" role="status" style="width:8px; height:8px; color:#f59e0b;"></span>
+                    Listening for Updates
+                </span>
+            </div>
+
+            <div id="emptyTracker" class="pr-empty">
+                <div class="pr-signal">
+                    <div class="pr-signal-ring"></div><div class="pr-signal-ring"></div><div class="pr-signal-ring"></div>
+                    <div class="pr-signal-core"><i class="bi bi-rss-fill"></i></div>
+                </div>
+                <div class="pr-empty-title">Awaiting Telegram Input</div>
+                <p class="pr-empty-sub">Send a text job post, LinkedIn screenshot, or PDF description to your bot. This dashboard will instantly intercept the message and track every pipeline step in real time.</p>
+                <a href="https://t.me/your_bot" target="_blank" id="botLaunchLink" class="pr-btn-launch"><i class="bi bi-telegram"></i> Open Telegram Bot Chat</a>
+            </div>
+
+            <div id="activeTracker" style="display:none;">
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6"><div class="pr-info-box"><span class="pr-info-label">Active Sender ID</span><span class="pr-info-value d-block" id="chatIdLabel">—</span></div></div>
+                    <div class="col-sm-6"><div class="pr-info-box"><span class="pr-info-label">Job Status Card</span><span class="pr-info-value d-block" id="jobIdLabel">—</span></div></div>
+                </div>
+                <div class="pipeline-stepper">
+                    <div class="step-card step-inactive" id="stepCard1"><div class="step-dot"><i class="bi bi-circle"></i></div><div><div class="step-header">Step 1 &mdash; Input Detection</div><div class="step-subheader" id="stepSub1">Waiting for file or text message from Telegram...</div></div></div>
+                    <div class="step-card step-inactive" id="stepCard2"><div class="step-dot"><i class="bi bi-circle"></i></div><div><div class="step-header">Step 2 &mdash; Gemini AI Extraction</div><div class="step-subheader" id="stepSub2">Extracting company, role, requirements, and recruiter details...</div></div></div>
+                    <div class="step-card step-inactive" id="stepCard3"><div class="step-dot"><i class="bi bi-circle"></i></div><div><div class="step-header">Step 3 &mdash; Skill Matching &amp; ATS Analysis</div><div class="step-subheader" id="stepSub3">Calculating skill similarity and ATS optimisation score...</div></div></div>
+                    <div class="step-card step-inactive" id="stepCard4"><div class="step-dot"><i class="bi bi-circle"></i></div><div><div class="step-header">Step 4 &mdash; AI Email Draft Synthesis</div><div class="step-subheader" id="stepSub4">Composing personalised outreach draft matching your profile...</div></div></div>
+                    <div class="step-card step-inactive" id="stepCard5"><div class="step-dot"><i class="bi bi-circle"></i></div><div><div class="step-header">Step 5 &mdash; Interactive Approval Loop</div><div class="step-subheader" id="stepSub5">Awaiting decision card confirmation on Telegram...</div></div></div>
+                </div>
+                <div id="webApprovalAlert" class="pr-web-alert" style="display:none;">
+                    <div class="pr-web-alert-icon"><i class="bi bi-envelope-check-fill"></i></div>
+                    <div class="pr-web-alert-title">Email Draft is Ready!</div>
+                    <p class="pr-web-alert-sub">Since you applied through the dashboard, you can review, edit, and send the generated email right here.</p>
+                    <a href="#" id="webApprovalLink" class="pr-btn-review"><i class="bi bi-eye-fill"></i> Review &amp; Send Email</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    let lastStepsHash = "";
+    async function pollStatus() {
+        try {
+            const response = await fetch('/Telegram/GetLiveStatus');
+            if (!response.ok) return;
+            const data = await response.json();
+            if (!data || data.length === 0) {
+                document.getElementById("emptyTracker").style.display = "block";
+                document.getElementById("activeTracker").style.display = "none";
+                const stateBadge = document.getElementById("pipelineState");
+                stateBadge.className = "pr-badge pr-badge-listening";
+                stateBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm me-1" role="status" style="width:8px; height:8px; color:#f59e0b;"></span> Listening for Updates`;
+                return;
+            }
+            const activeProcess = data[data.length - 1];
+            const isWebTrigger = activeProcess.chatId === 999;
+            document.getElementById("emptyTracker").style.display = "none";
+            document.getElementById("activeTracker").style.display = "block";
+            if (!isWebTrigger) document.getElementById("webApprovalAlert").style.display = "none";
+            document.getElementById("chatIdLabel").innerText = isWebTrigger ? "Web Dashboard" : activeProcess.chatId;
+            if (activeProcess.jobId && activeProcess.jobId > 0) {
+                document.getElementById("jobIdLabel").innerHTML = `<a href="/Email/Preview/${activeProcess.jobId}" class="text-accent-light fw-bold text-decoration-none"><i class="bi bi-eye"></i> Job #${activeProcess.jobId}</a>`;
+                if (isWebTrigger) {
+                    const alert = document.getElementById("webApprovalAlert");
+                    const link = document.getElementById("webApprovalLink");
+                    link.href = `/Email/Preview/${activeProcess.jobId}`;
+                    alert.style.display = "block";
+                }
+            } else {
+                document.getElementById("jobIdLabel").innerText = "Extracting... ⏳";
+            }
+            const steps = activeProcess.steps || [];
+            const currentHash = JSON.stringify(steps) + "_" + activeProcess.jobId;
+            if (currentHash === lastStepsHash) return;
+            lastStepsHash = currentHash;
+            for (let i = 1; i <= 5; i++) {
+                const card = document.getElementById(`stepCard${i}`);
+                card.className = "step-card step-inactive";
+                card.querySelector(".step-dot").innerHTML = '<i class="bi bi-circle"></i>';
+            }
+            let currentRunningStep = 0, isAnyFailed = false;
+            steps.forEach((step) => {
+                let stepNum = 0;
+                if (step.startsWith("Step 1")) stepNum = 1;
+                else if (step.startsWith("Step 2")) stepNum = 2;
+                else if (step.startsWith("Step 3")) stepNum = 3;
+                else if (step.startsWith("Step 4")) stepNum = 4;
+                else if (step.startsWith("Step 5")) stepNum = 5;
+                else if (step.startsWith("Step 6")) stepNum = 6;
+                if (stepNum === 0) return;
+                let status = "completed", cleanText = step, iconHtml = '<i class="bi bi-check-lg"></i>';
+                if (step.endsWith("⏳")) { status = "pending"; iconHtml = '<span class="spinner-border spinner-border-sm" style="width:10px; height:10px;"></span>'; cleanText = step.substring(0, step.length-2); currentRunningStep = stepNum; }
+                else if (step.endsWith("✅")) { status = "completed"; iconHtml = '<i class="bi bi-check-lg"></i>'; cleanText = step.substring(0, step.length-2); }
+                else if (step.endsWith("❌")) { status = "failed"; iconHtml = '<i class="bi bi-x-lg"></i>'; cleanText = step.substring(0, step.length-2); isAnyFailed = true; }
+                else if (step.endsWith("⚠️")) { status = "completed"; iconHtml = '<i class="bi bi-exclamation-triangle-fill"></i>'; cleanText = step.substring(0, step.length-2); }
+                const colonIndex = cleanText.indexOf(':');
+                if (colonIndex >= 0) cleanText = cleanText.substring(colonIndex+1).trim();
+                if (stepNum <= 5) {
+                    const card = document.getElementById(`stepCard${stepNum}`);
+                    const subHeader = document.getElementById(`stepSub${stepNum}`);
+                    subHeader.innerText = cleanText;
+                    if (status === "completed") { card.className = "step-card step-completed"; card.querySelector(".step-dot").innerHTML = iconHtml; }
+                    else if (status === "pending") { card.className = "step-card step-active-now animate-pulse"; card.querySelector(".step-dot").innerHTML = iconHtml; }
+                    else if (status === "failed") { card.className = "step-card step-failed-now"; card.querySelector(".step-dot").innerHTML = iconHtml; }
+                } else if (stepNum === 6) {
+                    const card5 = document.getElementById("stepCard5"), sub5 = document.getElementById("stepSub5");
+                    if (status === "completed") { card5.className = "step-card step-completed"; card5.querySelector(".step-dot").innerHTML = '<i class="bi bi-send-check-fill"></i>'; sub5.innerHTML = `<b>Approved!</b> ${cleanText}`; }
+                    else if (status === "pending") { card5.className = "step-card step-active-now"; card5.querySelector(".step-dot").innerHTML = '<span class="spinner-border spinner-border-sm" style="width:10px; height:10px;"></span>'; sub5.innerHTML = `<b>Processing Approval...</b> ${cleanText}`; }
+                    else if (status === "failed") { card5.className = "step-card step-failed-now"; card5.querySelector(".step-dot").innerHTML = '<i class="bi bi-x-circle-fill"></i>'; sub5.innerHTML = `<b>Approval failed:</b> ${cleanText}`; }
+                }
+            });
+            const stateBadge = document.getElementById("pipelineState");
+            if (isAnyFailed) { stateBadge.className = "pr-badge pr-badge-failed"; stateBadge.innerHTML = `<i class="bi bi-x-circle-fill"></i> Execution Failed`; }
+            else if (currentRunningStep > 0) { stateBadge.className = "pr-badge pr-badge-running"; stateBadge.innerHTML = `<span class="spinner-border spinner-border-sm me-1" style="width:10px; height:10px;"></span> Step ${currentRunningStep} in Progress`; }
+            else { stateBadge.className = "pr-badge pr-badge-done"; stateBadge.innerHTML = `<i class="bi bi-check-circle-fill"></i> Done`; }
+        } catch (err) { console.error("Failed to poll status", err); }
+    }
+    async function loadBotProfile() {
+        try {
+            const response = await fetch('/Telegram');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(text, 'text/html');
+            const botLink = htmlDoc.querySelector("a[href*='t.me']");
+            if (botLink) { const launchBtn = document.getElementById("botLaunchLink"); launchBtn.href = botLink.href; launchBtn.innerHTML = `<i class="bi bi-telegram me-1"></i> Open Chat (${botLink.innerText.trim()})`; }
+        } catch (e) {}
+    }
+    pollStatus(); loadBotProfile(); setInterval(pollStatus, 1000);
+</script>
+{% endblock %}
