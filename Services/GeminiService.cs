@@ -28,7 +28,38 @@ public class GeminiService
     private const int MaxRetries = 5;
     private static readonly int[] RetryDelaysMs = { 5_000, 10_000, 20_000, 40_000, 60_000 };
 
+    // ── Daily quota (model limit: 500 requests/day) ──────────────────────
+    private const int MaxRequestsPerDay = 500;
+    private static readonly object _dailyLock = new();
+    private static DateTime _dailyWindowUtcDate = DateTime.UtcNow.Date;
+    private static int _dailyCount;
+
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(6);
+
+    /// <summary>Number of Gemini requests used today (UTC). Resets at UTC midnight.</summary>
+    public static int UsedToday
+    {
+        get { lock (_dailyLock) { RollDailyWindowIfNeeded(); return _dailyCount; } }
+    }
+
+    /// <summary>The model's daily request cap.</summary>
+    public static int MaxPerDay => MaxRequestsPerDay;
+
+    /// <summary>True once today's request budget is exhausted.</summary>
+    public static bool DailyLimitReached
+    {
+        get { lock (_dailyLock) { RollDailyWindowIfNeeded(); return _dailyCount >= MaxRequestsPerDay; } }
+    }
+
+    private static void RollDailyWindowIfNeeded()
+    {
+        var today = DateTime.UtcNow.Date;
+        if (today != _dailyWindowUtcDate)
+        {
+            _dailyWindowUtcDate = today;
+            _dailyCount = 0;
+        }
+    }
 
     public GeminiService(HttpClient httpClient, IConfiguration configuration, IMemoryCache cache, ILogger<GeminiService> logger)
     {
@@ -508,7 +539,20 @@ Email format rules:
         await _rateLimitGate.WaitAsync();
         try
         {
-            // ── Enforce minimum gap between calls ────────────────────────
+            // ── Enforce daily quota (500 requests/day) ───────────────────
+            lock (_dailyLock)
+            {
+                RollDailyWindowIfNeeded();
+                if (_dailyCount >= MaxRequestsPerDay)
+                {
+                    _logger.LogWarning("Gemini daily limit ({Max}) reached — refusing call.", MaxRequestsPerDay);
+                    throw new GeminiDailyLimitException(
+                        $"Daily Gemini request limit ({MaxRequestsPerDay}/day) reached. Resets at UTC midnight.");
+                }
+                _dailyCount++;  // reserve this request's slot
+            }
+
+            // ── Enforce minimum gap between calls (≤ 15 RPM) ─────────────
             var elapsed = (DateTime.UtcNow - _lastCallUtc).TotalMilliseconds;
             if (elapsed < MinGapMs)
             {
@@ -680,4 +724,10 @@ Email format rules:
             };
         }
     }
+}
+
+/// <summary>Thrown when the model's daily request quota (500/day) is exhausted.</summary>
+public class GeminiDailyLimitException : Exception
+{
+    public GeminiDailyLimitException(string message) : base(message) { }
 }

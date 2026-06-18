@@ -432,6 +432,9 @@ public class AutoApplyService
         if (string.IsNullOrWhiteSpace(url)) return null;
         var m = Regex.Match(url, @"/jobs/view/(\d+)");
         if (m.Success) return m.Groups[1].Value;
+        // LinkedIn post permalinks: ".../posts/...-share-<activityId>-<code>/"
+        m = Regex.Match(url, @"-share-(\d+)");
+        if (m.Success) return m.Groups[1].Value;
         m = Regex.Match(url, @"JID([A-Za-z0-9]+)");
         if (m.Success) return m.Groups[1].Value;
         return null;

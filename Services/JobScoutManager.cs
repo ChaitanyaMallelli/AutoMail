@@ -180,4 +180,79 @@ public class JobScoutManager
 
         _logger.LogInformation("Scout cycle complete.");
     }
+
+    /// <summary>
+    /// On-demand flow: read curated LinkedIn post links from <paramref name="filePath"/> and run the
+    /// next <paramref name="maxApplies"/> unprocessed links through the auto-apply pipeline.
+    /// Links already present in AutoApplyLogs are skipped, so every run advances through the list.
+    /// Reports per-post status to <see cref="FileApplyProgressTracker"/> and stops when cancelled.
+    /// </summary>
+    public async Task RunFileApplyCycleAsync(string filePath, int maxApplies)
+    {
+        var chatId = (await _dbContext.UserProfiles
+            .Where(p => p.TelegramChatId != null && p.TelegramChatId != 0)
+            .Select(p => p.TelegramChatId)
+            .FirstOrDefaultAsync()) ?? 0;
+
+        var links = LinkedInFileScraperService.ParseLinks(filePath);
+        _logger.LogInformation("File apply: {Count} links parsed from {Path}", links.Count, filePath);
+
+        if (links.Count == 0)
+        {
+            FileApplyProgressTracker.Begin(0);
+            FileApplyProgressTracker.Complete();
+            _logger.LogWarning("File apply: no links found in {Path}", filePath);
+            return;
+        }
+
+        // Skip links we've already processed (applied/skipped/failed are all logged in AutoApplyLogs).
+        var doneUrls = (await _dbContext.AutoApplyLogs
+            .Where(l => l.JobUrl != null)
+            .Select(l => l.JobUrl!)
+            .ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var pending = links.Where(l => !doneUrls.Contains(l.LinkedInUrl)).Take(maxApplies).ToList();
+        _logger.LogInformation("File apply: {Pending} pending (cap {Cap}); {Done} already processed.",
+            pending.Count, maxApplies, doneUrls.Count);
+
+        var ct = FileApplyProgressTracker.Begin(pending.Count);
+        try
+        {
+            foreach (var job in pending)
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    _logger.LogInformation("File apply: stop requested — halting.");
+                    break;
+                }
+
+                if (GeminiService.DailyLimitReached)
+                {
+                    _logger.LogWarning("File apply: Gemini daily limit reached — stopping run.");
+                    FileApplyProgressTracker.Record("Skipped", "—", "Daily limit",
+                        $"Gemini {GeminiService.MaxPerDay}/day quota reached — stopping. Resumes after UTC midnight.");
+                    break;
+                }
+
+                try
+                {
+                    var log = await _autoApply.ProcessScoutedJobAsync(job, chatId, ct);
+                    var detail = log.Status == Models.AutoApplyStatus.Applied
+                        ? (log.EmailSent ? "Email sent" : (log.SkipReason ?? "Draft saved"))
+                        : (log.SkipReason ?? "");
+                    FileApplyProgressTracker.Record(log.Status.ToString(), log.CompanyName, log.JobTitle, detail);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "File apply: error processing {Url}", job.LinkedInUrl);
+                    FileApplyProgressTracker.Record("Failed", "Unknown", "Unknown", ex.Message);
+                }
+            }
+        }
+        finally
+        {
+            FileApplyProgressTracker.Complete();
+            _logger.LogInformation("File apply: run finished.");
+        }
+    }
 }

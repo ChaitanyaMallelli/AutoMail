@@ -457,10 +457,33 @@
             <i class="bi bi-search" id="scoutIcon"></i>
             <span id="scoutText">Search Now</span>
         </button>
+        <button id="btnStartApply" class="btn-violet">
+            <i class="bi bi-link-45deg"></i> Apply from Links
+        </button>
+        <button id="btnStopApply" class="btn-ghost" style="display:none;">
+            <i class="bi bi-stop-circle"></i> Stop
+        </button>
         <a href="@Url.Action("Index", "Upload")" class="btn-violet">
             <i class="bi bi-plus-lg"></i> New Job
         </a>
     </div>
+</div>
+
+@* ── Auto-Apply from Links — live progress panel ── *@
+<div id="applyPanel" class="glass-panel" style="display:none; padding:18px 20px; margin-bottom:24px;">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span id="applyStateDot" class="status-badge sb-pending"><i class="bi bi-lightning-charge-fill"></i> <span id="applyStateText">Idle</span></span>
+            <span style="font-size:13px; color:var(--text-secondary);"><span id="applyProcessed">0</span>/<span id="applyTotal">0</span> processed</span>
+            <span style="font-size:12px; color:var(--text-muted);">· Gemini today <b id="applyGemini">0/500</b></span>
+        </div>
+        <div style="display:flex; gap:14px; font-size:12.5px;">
+            <span style="color:#4ade80;">✅ Applied <b id="applyApplied">0</b></span>
+            <span style="color:#fbbf24;">⏭️ Skipped <b id="applySkipped">0</b></span>
+            <span style="color:#f87171;">❌ Failed <b id="applyFailed">0</b></span>
+        </div>
+    </div>
+    <div id="applyEntries" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
 </div>
 
 @* ── Stat cards ── *@
@@ -821,6 +844,79 @@
 
 @section Scripts {
     <script>
+        // ── Apply from Links File: start / stop + live progress ─────
+        (function () {
+            const startBtn = document.getElementById('btnStartApply');
+            const stopBtn  = document.getElementById('btnStopApply');
+            const panel    = document.getElementById('applyPanel');
+            if (!startBtn) return;
+            let pollTimer = null;
+
+            const badgeClass = s => s === 'Applied' ? 'sb-sent' : (s === 'Skipped' ? 'sb-saved' : 'sb-failed');
+            const rowIcon    = s => s === 'Applied' ? 'bi-check-circle' : (s === 'Skipped' ? 'bi-skip-forward' : 'bi-x-circle');
+
+            async function poll() {
+                try {
+                    const r = await fetch('/Dashboard/LinksApplyStatus');
+                    if (!r.ok) return;
+                    const d = await r.json();
+
+                    if (d.total > 0 || d.running) panel.style.display = '';
+                    document.getElementById('applyProcessed').textContent = d.processed;
+                    document.getElementById('applyTotal').textContent     = d.total;
+                    document.getElementById('applyApplied').textContent    = d.applied;
+                    document.getElementById('applySkipped').textContent    = d.skipped;
+                    document.getElementById('applyFailed').textContent     = d.failed;
+                    if (d.geminiMax) document.getElementById('applyGemini').textContent = d.geminiUsed + '/' + d.geminiMax;
+
+                    const st = document.getElementById('applyStateText');
+                    const dot = document.getElementById('applyStateDot');
+                    if (d.running) {
+                        st.textContent = 'Running';
+                        dot.className = 'status-badge sb-ready';
+                        startBtn.style.display = 'none';
+                        stopBtn.style.display = '';
+                    } else {
+                        st.textContent = d.processed > 0 ? 'Finished' : 'Idle';
+                        dot.className = 'status-badge ' + (d.processed > 0 ? 'sb-sent' : 'sb-pending');
+                        startBtn.style.display = '';
+                        stopBtn.style.display = 'none';
+                        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                    }
+
+                    document.getElementById('applyEntries').innerHTML = (d.entries || []).map(e =>
+                        `<div class="d-flex align-items-center gap-2" style="font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
+                            <span class="status-badge ${badgeClass(e.status)}"><i class="bi ${rowIcon(e.status)}"></i> ${e.status}</span>
+                            <span style="color:var(--text-primary);font-weight:600;">${e.company}</span>
+                            <span style="color:var(--text-muted);">— ${e.role}</span>
+                            <span style="color:var(--text-muted);margin-left:auto;text-align:right;">${e.detail || ''} · ${e.time}</span>
+                         </div>`).join('');
+                } catch (e) { /* ignore transient poll errors */ }
+            }
+
+            function startPolling() { if (!pollTimer) { poll(); pollTimer = setInterval(poll, 1500); } }
+
+            startBtn.addEventListener('click', async () => {
+                startBtn.disabled = true;
+                try {
+                    const r = await fetch('/Dashboard/StartLinksApply', { method: 'POST' });
+                    const d = await r.json();
+                    if (!d.success) { alert(d.message || 'Could not start.'); }
+                    else { panel.style.display = ''; startPolling(); }
+                } catch (e) { alert('Failed to start the run.'); }
+                finally { startBtn.disabled = false; }
+            });
+
+            stopBtn.addEventListener('click', async () => {
+                stopBtn.disabled = true;
+                try { await fetch('/Dashboard/StopLinksApply', { method: 'POST' }); } catch (e) {}
+                stopBtn.disabled = false;
+            });
+
+            // Resume the live view if a run is already active when the page loads.
+            startPolling();
+        })();
+
         // ── Web-apply handler for scouted jobs ──────────────────────
         document.querySelectorAll('.btn-web-apply').forEach(btn => {
             btn.addEventListener('click', async function () {

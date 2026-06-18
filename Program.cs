@@ -40,7 +40,9 @@ builder.Services.AddScoped<JobScoutManager>();
 
 // Hosted Background Services
 builder.Services.AddHostedService<JobAutomation.Workers.FollowUpBackgroundService>();
-builder.Services.AddHostedService<JobAutomation.Workers.JobScoutBackgroundService>();
+// Live keyword scraping disabled — we now auto-apply from a curated links file on demand
+// (Dashboard → "Apply from Links"). Re-enable to resume the 6-hour Playwright scout.
+// builder.Services.AddHostedService<JobAutomation.Workers.JobScoutBackgroundService>();
 builder.Services.AddHostedService<JobAutomation.Workers.GmailReplyMonitorService>();
 builder.Services.AddHostedService<JobAutomation.Workers.DailyReportBackgroundService>();
 

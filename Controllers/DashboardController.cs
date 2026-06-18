@@ -136,6 +136,51 @@ public class DashboardController : Controller
         }
     }
 
+    // ── On-demand "Apply from Links File" ────────────────────────────────────
+    [HttpPost]
+    public IActionResult StartLinksApply([FromServices] IConfiguration config)
+    {
+        if (FileApplyProgressTracker.IsRunning)
+            return Ok(new { success = false, message = "A run is already in progress." });
+
+        var filePath = config["LinkedIn:LinksFilePath"] ?? "scraped_links.txt";
+        if (!Path.IsPathRooted(filePath))
+            filePath = Path.Combine(Directory.GetCurrentDirectory(), filePath);
+        var maxApplies = int.TryParse(config["AutoApply:MaxAppliesPerRun"], out var n) ? n : 30;
+
+        var scopeFactory = _scopeFactory;
+        var logger = _logger;
+        _ = Task.Run(async () =>
+        {
+            using var scope = scopeFactory.CreateScope();
+            try
+            {
+                var scout = scope.ServiceProvider.GetRequiredService<JobScoutManager>();
+                await scout.RunFileApplyCycleAsync(filePath, maxApplies);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "File apply run crashed.");
+                FileApplyProgressTracker.Complete();
+            }
+        });
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost]
+    public IActionResult StopLinksApply()
+    {
+        FileApplyProgressTracker.RequestStop();
+        return Ok(new { success = true });
+    }
+
+    [HttpGet]
+    public IActionResult LinksApplyStatus()
+    {
+        return Json(FileApplyProgressTracker.Snapshot(GeminiService.UsedToday, GeminiService.MaxPerDay));
+    }
+
     [HttpPost]
     public async Task<IActionResult> ApplyScoutedJob(int id)
     {
