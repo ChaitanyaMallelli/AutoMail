@@ -147,9 +147,8 @@ public class LinkedInScraperService : IJobBoardScraper
                     // Nothing rendered within the window — fall through to the diagnostic capture below.
                 }
 
-                // Scroll down to load more posts until we have nearly 50 posts (up to a max of 10 scrolls to avoid hanging)
-                int maxScrolls = 10;
-                int scrollCount = 0;
+                // Scroll down to load more posts until we have nearly 300 posts (up to a max of 30 scrolls to avoid hanging)
+                int maxScrolls = 30;
 
                 var postElements = await page.QuerySelectorAllAsync(postSelector);
                 _logger.LogInformation("Initially found {Count} posts for keyword {Keyword}.", postElements.Count, keyword);
@@ -166,70 +165,81 @@ public class LinkedInScraperService : IJobBoardScraper
                     continue;
                 }
 
-                while (postElements.Count < 50 && scrollCount < maxScrolls)
-                {
-                    _logger.LogInformation("Scrolling down to load more posts... (Current count: {Count}, Scroll: {Scroll}/{MaxScrolls})", postElements.Count, scrollCount + 1, maxScrolls);
-                    
-                    // Scroll to the bottom of the page
-                    await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
-                    
-                    // Wait for new posts to load and render
-                    await Task.Delay(2500);
+                // LinkedIn virtualizes (recycles) the results DOM — off-screen posts are unmounted, so the
+                // rendered count plateaus (~9) even when more posts exist below. Harvest INCREMENTALLY on
+                // each scroll, dedup by post text, and only stop after several consecutive scrolls surface
+                // nothing new (not on the first plateau). The permalink is captured as each post appears,
+                // since it leaves the DOM once we scroll past it.
+                var seenKeys = new HashSet<string>();
+                int keptBefore = foundJobs.Count;
+                int emptyRounds = 0;
 
-                    var currentElements = await page.QuerySelectorAllAsync(postSelector);
-                    
-                    // If no new elements were loaded after a scroll, try a small jog/nudge to trigger lazy loading
-                    if (currentElements.Count == postElements.Count)
+                for (int scroll = 0; scroll <= maxScrolls; scroll++)
+                {
+                    var elements = await page.QuerySelectorAllAsync(postSelector);
+                    int newThisRound = 0;
+
+                    foreach (var element in elements)
                     {
-                        await page.EvaluateAsync("window.scrollBy(0, -300)");
-                        await Task.Delay(500);
-                        await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
-                        await Task.Delay(2000);
-                        
-                        currentElements = await page.QuerySelectorAllAsync(postSelector);
-                        if (currentElements.Count == postElements.Count)
+                        try
                         {
-                            _logger.LogInformation("No more posts available to load for this search.");
+                            // Post text — the stable testid hook.
+                            var textElement = await element.QuerySelectorAsync("[data-testid='expandable-text-box']");
+                            var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
+                            if (string.IsNullOrWhiteSpace(rawText)) continue;
+
+                            // Dedup by post text so virtualized/recycled posts aren't re-added.
+                            var key = rawText.Trim();
+                            if (key.Length > 200) key = key.Substring(0, 200);
+                            if (!seenKeys.Add(key)) continue;
+
+                            // Permalink isn't in the DOM - get it via the post's control menu -> "Copy link to post".
+                            var url = await GetPostUrlViaMenuAsync(page, element);
+                            if (string.IsNullOrEmpty(url))
+                            {
+                                _logger.LogDebug("Could not resolve a permalink for a '{Keyword}' post; skipping it.", keyword);
+                                continue;
+                            }
+
+                            foundJobs.Add(new ScoutedJob
+                            {
+                                LinkedInUrl = url,
+                                RawText = rawText,
+                                KeywordMatched = keyword,
+                                Board = BoardName
+                            });
+                            newThisRound++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to extract a post for keyword {Keyword}; continuing.", keyword);
+                        }
+                    }
+
+                    int kept = foundJobs.Count - keptBefore;
+                    _logger.LogInformation("Keyword '{Keyword}' - scroll {Scroll}/{Max}: +{New} new, {Kept} kept total.", keyword, scroll, maxScrolls, newThisRound, kept);
+
+                    if (kept >= 300) break;
+                    if (newThisRound == 0)
+                    {
+                        emptyRounds++;
+                        if (emptyRounds >= 4)
+                        {
+                            _logger.LogInformation("No new posts after {Rounds} consecutive scrolls - stopping for '{Keyword}'.", emptyRounds, keyword);
                             break;
                         }
                     }
+                    else
+                    {
+                        emptyRounds = 0;
+                    }
 
-                    postElements = currentElements;
-                    scrollCount++;
+                    // Smaller incremental scroll so virtualized batches render as we pass them.
+                    await page.EvaluateAsync("window.scrollBy(0, 1400)");
+                    await Task.Delay(2000);
                 }
 
-                _logger.LogInformation("Finished loading posts for keyword {Keyword}. Total found: {Count}", keyword, postElements.Count);
-                
-                foreach (var element in postElements)
-                {
-                    try
-                    {
-                        // Post text — the stable testid hook.
-                        var textElement = await element.QuerySelectorAsync("[data-testid='expandable-text-box']");
-                        var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
-                        if (string.IsNullOrWhiteSpace(rawText)) continue;
-
-                        // Permalink isn't in the DOM — get it via the post's control menu -> "Copy link to post".
-                        var url = await GetPostUrlViaMenuAsync(page, element);
-                        if (string.IsNullOrEmpty(url))
-                        {
-                            _logger.LogDebug("Could not resolve a permalink for a '{Keyword}' post; skipping it.", keyword);
-                            continue;
-                        }
-
-                        foundJobs.Add(new ScoutedJob
-                        {
-                            LinkedInUrl = url,
-                            RawText = rawText,
-                            KeywordMatched = keyword,
-                            Board = BoardName
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to extract a post for keyword {Keyword}; continuing.", keyword);
-                    }
-                }
+                _logger.LogInformation("Finished keyword '{Keyword}'. Total kept: {Count}", keyword, foundJobs.Count - keptBefore);
                 
                 // Random human-like delay between searches
                 await Task.Delay(new Random().Next(3000, 7000));
