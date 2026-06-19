@@ -617,7 +617,7 @@
     else
     {
         <div class="table-scroll">
-            <table class="h-table">
+            <table class="h-table rwd-table">
                 <thead>
                     <tr>
                         <th>Company</th>
@@ -643,7 +643,7 @@
                         <tr>
 
                             <!-- Company -->
-                            <td>
+                            <td data-label="Company">
                                 <div class="company-cell">
                                     <div class="company-avatar @avatarClass">@firstLetter</div>
                                     <span class="company-name" title="@(email.JobPost?.CompanyName ?? "")">
@@ -653,28 +653,28 @@
                             </td>
 
                             <!-- Role -->
-                            <td>
+                            <td data-label="Role">
                                 <span class="role-text" title="@(email.JobPost?.Role ?? "")">
                                     @(email.JobPost?.Role ?? "N/A")
                                 </span>
                             </td>
 
                             <!-- Recipient -->
-                            <td>
+                            <td data-label="Recipient">
                                 <span class="recipient-email" title="@email.RecipientEmail">
                                     @email.RecipientEmail
                                 </span>
                             </td>
 
                             <!-- Subject -->
-                            <td>
+                            <td data-label="Subject">
                                 <span class="subject-text" title="@email.Subject">
                                     @(email.Subject.Length > 45 ? email.Subject[..45] + "…" : email.Subject)
                                 </span>
                             </td>
 
                             <!-- Status -->
-                            <td>
+                            <td data-label="Status">
                                 @if (email.IsSent)
                                 {
                                     <span class="status-badge status-sent">
@@ -702,7 +702,7 @@
                             </td>
 
                             <!-- Opened -->
-                            <td>
+                            <td data-label="Opened">
                                 @if (email.OpenedAt.HasValue)
                                 {
                                     <span class="opened-badge" title="@email.OpenedAt?.ToString("f")">
@@ -721,7 +721,7 @@
                             </td>
 
                             <!-- Reply -->
-                            <td>
+                            <td data-label="Reply">
                                 @if (email.RepliedAt.HasValue)
                                 {
                                     var (replyCls, replyIcon, replyLabel) = email.ReplyClassification switch {
@@ -742,7 +742,7 @@
                             </td>
 
                             <!-- Sent Date -->
-                            <td>
+                            <td data-label="Sent">
                                 @if (email.SentAt.HasValue)
                                 {
                                     <span class="sent-date-text"
@@ -757,7 +757,7 @@
                             </td>
 
                             <!-- Actions -->
-                            <td>
+                            <td data-label="Actions" class="rwd-actions">
                                 <div class="actions-cell">
                                     <a href="@Url.Action("Preview", new { id = email.JobPostId })"
                                        class="btn-icon btn-icon-view"

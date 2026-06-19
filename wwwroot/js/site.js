@@ -5,24 +5,11 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     // --- Sidebar Toggle (Mobile) ---
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebar = document.getElementById('sidebar');
-
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', function () {
-            sidebar.classList.toggle('show');
-        });
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function (e) {
-            if (window.innerWidth < 992 &&
-                sidebar.classList.contains('show') &&
-                !sidebar.contains(e.target) &&
-                !sidebarToggle.contains(e.target)) {
-                sidebar.classList.remove('show');
-            }
-        });
-    }
+    // NOTE: The mobile drawer is driven entirely by the inline script in
+    // _Layout.cshtml (open/close + backdrop). A second toggle handler used to
+    // live here too, and because site.js loads first it added `.show` and then
+    // the layout handler immediately saw `.show` and closed it again — so the
+    // sidebar never opened. That duplicate handler has been removed on purpose.
 
     // --- Clock ---
     const timeEl = document.getElementById('currentTime');

@@ -616,7 +616,7 @@
             else
             {
                 <div class="table-responsive">
-                    <table class="dash-table">
+                    <table class="dash-table rwd-table">
                         <thead>
                             <tr>
                                 <th style="width:110px;">Date</th>
@@ -642,19 +642,19 @@
                                 };
                                 var matchClass = job.SkillMatchPercentage >= 70 ? "hi" : job.SkillMatchPercentage >= 40 ? "mid" : "lo";
                                 <tr class="job-row">
-                                    <td>
+                                    <td data-label="Date">
                                         <span class="date-text">@job.CreatedAt.ToIst().ToString("MMM dd, yyyy")</span>
                                     </td>
-                                    <td>
+                                    <td data-label="Company">
                                         <div class="company-cell">
                                             <div class="company-avatar @avatarClass">@firstLetter</div>
                                             <span class="company-name" title="@job.CompanyName">@job.CompanyName</span>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td data-label="Role">
                                         <span class="role-text">@job.Role</span>
                                     </td>
-                                    <td>
+                                    <td data-label="Match">
                                         <div class="match-cell">
                                             <div class="match-bar-wrap">
                                                 <div class="match-bar-fill @matchClass"
@@ -667,7 +667,7 @@
                                             <span class="match-pct @matchClass">@job.SkillMatchPercentage%</span>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td data-label="Status">
                                         @switch (job.Status)
                                         {
                                             case JobAutomation.Models.JobStatus.Pending:
@@ -711,7 +711,7 @@
                                                 break;
                                         }
                                     </td>
-                                    <td>
+                                    <td data-label="Actions" class="rwd-actions">
                                         <div class="d-flex align-items-center gap-1 flex-wrap">
                                             <a href="@Url.Action("Preview", "Email", new { id = job.Id })"
                                                class="action-btn action-btn-info"
@@ -821,7 +821,7 @@
                     <p>The background LinkedIn scout hasn't run yet, or no matches were found.</p>
                 </div>
                 <div class="table-responsive" id="scoutLogsTable" style="display:none;">
-                    <table class="dash-table">
+                    <table class="dash-table rwd-table">
                         <thead>
                             <tr>
                                 <th style="width:120px;">Date</th>
@@ -1049,12 +1049,12 @@
                             : '';
                     const preview = (j.rawPreview || '').replace(/"/g, '&quot;');
                     return `<tr>
-                        <td class="align-middle"><span class="date-text">${j.createdAt}</span></td>
-                        <td class="align-middle"><span class="board-pill">${j.board}</span></td>
-                        <td class="align-middle"><span class="keyword-pill">${j.keyword || ''}</span></td>
-                        <td class="align-middle">${statusHtml}</td>
-                        <td class="align-middle"><span style="font-size:12px;color:var(--text-muted);" title="${preview}">${j.rawPreview || ''}</span></td>
-                        <td class="align-middle text-end pe-4">
+                        <td class="align-middle" data-label="Date"><span class="date-text">${j.createdAt}</span></td>
+                        <td class="align-middle" data-label="Board"><span class="board-pill">${j.board}</span></td>
+                        <td class="align-middle" data-label="Keyword"><span class="keyword-pill">${j.keyword || ''}</span></td>
+                        <td class="align-middle" data-label="Status">${statusHtml}</td>
+                        <td class="align-middle" data-label="Preview"><span style="font-size:12px;color:var(--text-muted);" title="${preview}">${j.rawPreview || ''}</span></td>
+                        <td class="align-middle text-end pe-4 rwd-actions" data-label="Actions">
                             <div class="d-flex justify-content-end gap-2 flex-wrap">
                                 <a href="${j.url}" target="_blank" class="action-btn action-btn-info"><i class="bi bi-box-arrow-up-right"></i>Post</a>
                                 ${applyBtn}

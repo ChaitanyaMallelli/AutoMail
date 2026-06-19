@@ -673,7 +673,7 @@
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-dark rp-table align-middle">
+                    <table class="table table-dark rp-table rwd-table align-middle">
                         <thead>
                             <tr>
                                 <th>File</th>
@@ -686,7 +686,7 @@
                             @foreach (var resume in allResumes)
                             {
                                 <tr>
-                                    <td>
+                                    <td data-label="File">
                                         <div class="d-flex align-items-center gap-3">
                                             <div class="file-bubble">
                                                 <i class="bi bi-file-earmark-pdf-fill"></i>
@@ -704,10 +704,10 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td style="font-size:12px; white-space:nowrap; color:var(--text-muted);">
+                                    <td data-label="Uploaded" style="font-size:12px; white-space:nowrap; color:var(--text-muted);">
                                         @resume.UploadedAt.ToIst().ToString("MMM dd, yyyy HH:mm")
                                     </td>
-                                    <td class="text-center">
+                                    <td data-label="Status" class="text-center">
                                         @if (resume.IsActive)
                                         {
                                             <span class="badge-active">
@@ -719,7 +719,7 @@
                                             <span class="badge-inactive">Inactive</span>
                                         }
                                     </td>
-                                    <td class="text-end">
+                                    <td data-label="Actions" class="text-end rwd-actions">
                                         <div class="d-inline-flex align-items-center gap-1">
                                             @if (!resume.IsActive)
                                             {

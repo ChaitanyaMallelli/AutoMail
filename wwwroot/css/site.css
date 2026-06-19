@@ -3415,4 +3415,168 @@ code {
     scrollbar-width: thin;
 }
 
+
+/* ============================================================
+   43. RESPONSIVE ENGINE  (mobile + desktop redesign layer)
+   Loaded last so it tunes every page consistently. The
+   table→card transform is the headline mobile change.
+   ============================================================ */
+
+/* ── 43.1  Fluid container & rhythm ───────────────────────── */
+@media (max-width: 991.98px) {
+    .content-body { padding: clamp(14px, 4vw, 24px) !important; }
+    .content-header { padding-left: 64px !important; }
+}
+@media (max-width: 575.98px) {
+    .content-body { padding: 14px 13px !important; }
+}
+
+/* Never let a page push the body sideways */
+@media (max-width: 991.98px) {
+    .main-content { max-width: 100vw; overflow-x: hidden; }
+}
+
+/* ── 43.2  Comfortable touch targets on phones ────────────── */
+@media (max-width: 767.98px) {
+    .action-btn,
+    .tbl-btn,
+    .btn-icon,
+    .ep-btn,
+    .btn-violet,
+    .btn-ghost {
+        min-height: 40px;
+    }
+    /* Square icon buttons stay square but bigger */
+    .btn-icon { min-width: 40px; }
+}
+
+/* ── 43.3  Pill / tab strips: scroll instead of squashing ── */
+@media (max-width: 767.98px) {
+    .dash-tabs,
+    .submit-tabs-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .dash-tabs::-webkit-scrollbar,
+    .submit-tabs-wrapper::-webkit-scrollbar { display: none; }
+    .dash-tabs .nav-link { white-space: nowrap; flex-shrink: 0; }
+}
+
+/* ── 43.4  THE RESPONSIVE TABLE → CARD TRANSFORM ──────────────
+   Any <table class="rwd-table"> with data-label on its <td>s
+   becomes a stack of labelled cards under 720px. !important is
+   used deliberately to win over each page's bespoke table CSS,
+   which is injected after this file in the cascade.            */
+@media (max-width: 719.98px) {
+    table.rwd-table,
+    table.rwd-table tbody {
+        display: block !important;
+        width: 100% !important;
+    }
+    table.rwd-table thead { display: none !important; }
+
+    table.rwd-table tr {
+        display: block !important;
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-lg) !important;
+        padding: 4px 2px !important;
+        margin-bottom: 12px !important;
+        box-shadow: var(--shadow-sm);
+    }
+    table.rwd-table tr:hover { background: var(--bg-card) !important; }
+    table.rwd-table tr:last-child { margin-bottom: 0 !important; }
+
+    table.rwd-table td {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 10px 15px !important;
+        border: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        text-align: right;
+        white-space: normal !important;
+    }
+    table.rwd-table tr td:last-child { border-bottom: none !important; }
+
+    /* The label, pulled from data-label */
+    table.rwd-table td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        margin-right: auto;
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        color: var(--text-muted);
+    }
+    /* Cells without a label (or explicitly blank) drop the prefix */
+    table.rwd-table td:not([data-label])::before,
+    table.rwd-table td[data-label=""]::before { content: ""; margin: 0; }
+
+    /* Action cells: let buttons sit on their own full-width row */
+    table.rwd-table td.rwd-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        text-align: left;
+    }
+    table.rwd-table td.rwd-actions::before { width: 100%; margin-bottom: 4px; }
+
+    /* Let truncated company / role / subject cells breathe */
+    table.rwd-table .company-name,
+    table.rwd-table .role-text,
+    table.rwd-table .subject-text,
+    table.rwd-table .recipient-email {
+        max-width: 62vw !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+    /* Match bar shouldn't collapse to nothing in a flex cell */
+    table.rwd-table .match-cell { flex: 1; min-width: 140px; justify-content: flex-end; }
+}
+
+/* ── 43.5  Stat grids: graceful step-down ─────────────────── */
+@media (max-width: 479.98px) {
+    .stat-grid { gap: 10px !important; }
+    .stat-card { padding: 14px 13px !important; }
+    .stat-value { font-size: 23px !important; }
+}
+
+/* ── 43.6  Dashboard header action row on phones ──────────── */
+@media (max-width: 575.98px) {
+    .dash-header-title { font-size: 21px !important; }
+    /* Header action buttons share the row evenly, then wrap */
+    .d-flex.gap-2.flex-wrap > .btn-violet,
+    .d-flex.gap-2.flex-wrap > .btn-ghost {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+/* ── 43.7  Two-column page layouts already use Bootstrap grid
+   (Resume, Telegram) so they stack at lg automatically.
+   Just relax sticky side panels on small screens.            */
+@media (max-width: 991.98px) {
+    .preview-sidebar,
+    .rp-card[style*="sticky"] { position: static !important; }
+}
+
+/* ── 43.8  Honor reduced-motion preferences ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 /* End of file */
