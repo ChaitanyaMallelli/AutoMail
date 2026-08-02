@@ -85,7 +85,7 @@ using (var scope = app.Services.CreateScope())
         // Multi-board scout: track which board each scouted job came from
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"Board\" character varying(50) NOT NULL DEFAULT 'LinkedIn';"); } catch { }
         // Link manually placed resume file to active resume record if FilePath is missing
-        try { db.Database.ExecuteSqlRaw("UPDATE \"Resumes\" SET \"FilePath\" = 'Resume/Chaitanya_Mallelli_Resume.pdf' WHERE \"IsActive\" = true AND (\"FilePath\" IS NULL OR \"FilePath\" = '');"); } catch { }
+        try { db.Database.ExecuteSqlRaw("UPDATE \"Resumes\" SET \"FilePath\" = 'Resume/Jai_Mokkapati_SRE_Resume_Experience.pdf' WHERE \"IsActive\" = true AND (\"FilePath\" IS NULL OR \"FilePath\" = '');"); } catch { }
         // Auto-apply: job ID column on ScoutedJobs
         try { db.Database.ExecuteSqlRaw("ALTER TABLE \"ScoutedJobs\" ADD COLUMN \"JobId\" character varying(100) NULL;"); } catch { }
         // Auto-apply: performance indexes
@@ -124,10 +124,10 @@ using (var scope = app.Services.CreateScope())
                 db.UserProfiles.Add(new UserProfile
                 {
                     Id = 1,
-                    FullName = "Chaitanya Mallelli",
-                    Email = "MallelliChaitanya5@gmail.com",
-                    Phone = "+91 9390981596",
-                    LinkedInUrl = "https://www.linkedin.com/in/chaitanya-mallelli-7a9b76204/"
+                    FullName = "Mokkapati Jay",
+                    Email = "sairamchowdary992@gmail.com",
+                    Phone = "+91 6305349489",
+                    LinkedInUrl = "https://www.linkedin.com/in/jai-sri-krishna-sai-ram-mokkapati-482b49244/"
                 });
                 db.SaveChanges();
             }
