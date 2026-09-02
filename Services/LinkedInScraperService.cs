@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using JobAutomation.Models;
 
@@ -9,12 +10,21 @@ public class LinkedInScraperService : IJobBoardScraper
 
     private readonly string _email;
     private readonly string _password;
+    private readonly int _maxPostsPerKeyword;
     private readonly ILogger<LinkedInScraperService> _logger;
+
+    /// <summary>
+    /// Persistent profile directory so LinkedIn session cookies survive across runs.
+    /// </summary>
+    private static readonly string SessionDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AutoMail", "linkedin-session");
 
     public LinkedInScraperService(IConfiguration configuration, ILogger<LinkedInScraperService> logger)
     {
         _email = configuration["LinkedIn:Email"] ?? "";
         _password = configuration["LinkedIn:Password"] ?? "";
+        _maxPostsPerKeyword = configuration.GetValue<int?>("LinkedIn:MaxPostsPerKeyword") ?? 30;
         _logger = logger;
     }
 
@@ -24,286 +34,608 @@ public class LinkedInScraperService : IJobBoardScraper
 
         if (string.IsNullOrEmpty(_email) || string.IsNullOrEmpty(_password))
         {
-            _logger.LogError("LinkedIn credentials not found in appsettings.");
+            _logger.LogError("LinkedIn credentials not found in configuration.");
             return foundJobs;
         }
 
+        IPlaywright? playwright = null;
+        IBrowserContext? context = null;
+
         try
         {
-            using var playwright = await Playwright.CreateAsync();
-            
-            // Launch browser visibly so we can see what LinkedIn is complaining about!
-            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = false });
-            
-            var context = await browser.NewContextAsync(new BrowserNewContextOptions
-            {
-                UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                ViewportSize = new ViewportSize { Width = 1280, Height = 720 },
-                // Needed so we can read each post's permalink from the clipboard after "Copy link to post".
-                Permissions = new[] { "clipboard-read", "clipboard-write" }
-            });
-            var page = await context.NewPageAsync();
+            playwright = await Playwright.CreateAsync();
+            context = await CreatePersistentContextAsync(playwright);
+            var page = await GetOrCreatePageAsync(context);
 
-            // Bypass basic WebDriver detection
-            await page.AddInitScriptAsync("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-
-            try
-            {
-                _logger.LogInformation("Logging into LinkedIn...");
-                await page.GotoAsync("https://www.linkedin.com/login");
-                
-                // Wait for the page DOM to be ready
-                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-                
-                // Give it a moment to process potential automatic redirects (if a session exists)
-                await Task.Delay(3000);
-                
-                if (!page.Url.Contains("feed") && !page.Url.Contains("checkpoint"))
-                {
-                    // LinkedIn frequently changes input IDs. We will try all common variations, ensuring we only target visible elements.
-                    var emailSelector = "input#username:visible, input#session_key:visible, input[name='session_key']:visible, input[type='email']:visible, input[autocomplete='username']:visible";
-                    var passSelector = "input#password:visible, input#session_password:visible, input[name='session_password']:visible, input[type='password']:visible, input[autocomplete='current-password']:visible";
-                    
-                    // Wait for at least one of these to appear
-                    await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
-                    
-                    await page.FillAsync(emailSelector, _email);
-                    await page.FillAsync(passSelector, _password);
-                    
-                    // Press Enter on the password field instead of looking for brittle submit buttons
-                    await page.PressAsync(passSelector, "Enter");
-                }
-                
-                // Wait for feed to load. Checks for redirect to feed or a checkpoint.
-                _logger.LogInformation("Waiting for home feed to load...");
-                var feedLoaded = false;
-                for (int i = 0; i < 60; i++)
-                {
-                    if (page.Url.Contains("feed") || page.Url.Contains("checkpoint"))
-                    {
-                        feedLoaded = true;
-                        break;
-                    }
-                    await Task.Delay(1000);
-                }
-
-                if (!feedLoaded)
-                {
-                    throw new TimeoutException("Failed to redirect to LinkedIn feed page or checkpoint after login.");
-                }
-
-                // If LinkedIn redirects us to a security checkpoint, pause and notify the user to solve it in the visible window
-                if (page.Url.Contains("checkpoint"))
-                {
-                    _logger.LogWarning("LinkedIn security checkpoint detected. Please complete any verification/captcha in the opened browser window...");
-                    for (int i = 0; i < 90; i++) // up to 90 seconds for checkpoint solving
-                    {
-                        if (page.Url.Contains("feed"))
-                        {
-                            _logger.LogInformation("Security checkpoint successfully completed!");
-                            break;
-                        }
-                        await Task.Delay(1000);
-                    }
-                }
-
-                // Settle delay to let the feed fully render
-                await Task.Delay(5000);
-                _logger.LogInformation("Login successful and feed loaded.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to login. Current URL: {Url}. Taking screenshot...", page.Url);
-                await page.ScreenshotAsync(new PageScreenshotOptions { Path = "login_error.png" });
-                throw;
-            }
+            await EnsureLoggedInAsync(page);
 
             foreach (var keyword in keywords)
             {
-                _logger.LogInformation("Searching LinkedIn Posts for: {Keyword}", keyword);
-                var encodedKeyword = Uri.EscapeDataString(keyword);
-                
-                // Navigate to Content (Posts) Search, filtered to past 24 hours
-                var searchUrl = $"https://www.linkedin.com/search/results/content/?datePosted=%22past-24h%22&keywords={encodedKeyword}";
-                await page.GotoAsync(searchUrl);
+                if (cancellationToken.IsCancellationRequested) break;
 
-                // Wait for the search results to populate
-                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-
-                // LinkedIn's content search is now server-driven UI with randomized class names and NO
-                // inline post URNs/permalinks. Each post is a role="listitem" containing an
-                // [data-testid="expandable-text-box"]; these structural/testid hooks survive redesigns,
-                // unlike the old obfuscated CSS classes. The permalink is fetched per-post via its
-                // control menu ("Copy link to post") since it isn't present in the DOM.
-                var postSelector = "div[role='listitem']:has([data-testid='expandable-text-box'])";
-
-                // Actually WAIT for at least one result to render instead of a blind fixed delay.
                 try
                 {
-                    await page.WaitForSelectorAsync(postSelector, new PageWaitForSelectorOptions { Timeout = 15000 });
-                }
-                catch (TimeoutException)
-                {
-                    // Nothing rendered within the window — fall through to the diagnostic capture below.
-                }
+                    // Ensure page is still alive before each keyword
+                    page = await GetOrCreatePageAsync(context);
 
-                // Scroll down to load more posts until we have nearly 300 posts (up to a max of 30 scrolls to avoid hanging)
-                int maxScrolls = 30;
+                    _logger.LogInformation("Searching LinkedIn Posts for: {Keyword}", keyword);
+                    var encodedKeyword = Uri.EscapeDataString(keyword);
+                    var targetPostsForKeyword = Math.Max(1, _maxPostsPerKeyword);
 
-                var postElements = await page.QuerySelectorAllAsync(postSelector);
-                _logger.LogInformation("Initially found {Count} posts for keyword {Keyword}.", postElements.Count, keyword);
+                    var searchUrl = $"https://www.linkedin.com/search/results/content/?datePosted=%22past-24h%22&sortBy=%22date_posted%22&keywords={encodedKeyword}";
+                    await page.GotoAsync(searchUrl, new PageGotoOptions { WaitUntil = WaitUntilState.Load, Timeout = 45000 });
+                    await Task.Delay(4000);
 
-                if (postElements.Count == 0)
-                {
-                    // Capture exactly what LinkedIn served so we can see the real DOM / detect a wall or empty state,
-                    // instead of guessing at class names. Files are overwritten each run, keyed by keyword.
-                    await CaptureDebugStateAsync(page, keyword);
-                    _logger.LogWarning(
-                        "No search results found for {Keyword}. Saved screenshot + HTML to scrape-debug/ for inspection. " +
-                        "Common causes: LinkedIn changed result class names, a 'restricted activity' wall, or a genuine empty result set.",
-                        keyword);
-                    continue;
-                }
-
-                // LinkedIn virtualizes (recycles) the results DOM — off-screen posts are unmounted, so the
-                // rendered count plateaus (~9) even when more posts exist below. Harvest INCREMENTALLY on
-                // each scroll, dedup by post text, and only stop after several consecutive scrolls surface
-                // nothing new (not on the first plateau). The permalink is captured as each post appears,
-                // since it leaves the DOM once we scroll past it.
-                var seenKeys = new HashSet<string>();
-                int keptBefore = foundJobs.Count;
-                int emptyRounds = 0;
-
-                for (int scroll = 0; scroll <= maxScrolls; scroll++)
-                {
-                    var elements = await page.QuerySelectorAllAsync(postSelector);
-                    int newThisRound = 0;
-
-                    foreach (var element in elements)
+                    // Re-auth guard if redirected to login
+                    if (!IsLoggedIn(page.Url))
                     {
-                        try
+                        _logger.LogWarning("LinkedIn session expired during search for '{Keyword}' — re-logging in...", keyword);
+                        await EnsureLoggedInAsync(page);
+                        await page.GotoAsync(searchUrl, new PageGotoOptions { WaitUntil = WaitUntilState.Load, Timeout = 45000 });
+                        await Task.Delay(4000);
+
+                        if (!IsLoggedIn(page.Url))
                         {
-                            // Post text — the stable testid hook.
-                            var textElement = await element.QuerySelectorAsync("[data-testid='expandable-text-box']");
-                            var rawText = textElement != null ? await textElement.InnerTextAsync() : "";
-                            if (string.IsNullOrWhiteSpace(rawText)) continue;
-
-                            // Dedup by post text so virtualized/recycled posts aren't re-added.
-                            var key = rawText.Trim();
-                            if (key.Length > 200) key = key.Substring(0, 200);
-                            if (!seenKeys.Add(key)) continue;
-
-                            // Permalink isn't in the DOM - get it via the post's control menu -> "Copy link to post".
-                            var url = await GetPostUrlViaMenuAsync(page, element);
-                            if (string.IsNullOrEmpty(url))
-                            {
-                                _logger.LogDebug("Could not resolve a permalink for a '{Keyword}' post; skipping it.", keyword);
-                                continue;
-                            }
-
-                            foundJobs.Add(new ScoutedJob
-                            {
-                                LinkedInUrl = url,
-                                RawText = rawText,
-                                KeywordMatched = keyword,
-                                Board = BoardName
-                            });
-                            newThisRound++;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to extract a post for keyword {Keyword}; continuing.", keyword);
+                            _logger.LogError("Could not re-establish LinkedIn session. Skipping keyword '{Keyword}'.", keyword);
+                            await CaptureDebugStateAsync(page, keyword);
+                            continue;
                         }
                     }
 
-                    int kept = foundJobs.Count - keptBefore;
-                    _logger.LogInformation("Keyword '{Keyword}' - scroll {Scroll}/{Max}: +{New} new, {Kept} kept total.", keyword, scroll, maxScrolls, newThisRound, kept);
-
-                    if (kept >= 300) break;
-                    if (newThisRound == 0)
+                    var candidateSelectors = new[]
                     {
-                        emptyRounds++;
-                        if (emptyRounds >= 4)
+                        "div[role='listitem']:has([data-testid='expandable-text-box'])",
+                        "div[role='listitem']:has(.feed-shared-update-v2)",
+                        "div[role='listitem']",
+                        "li[role='listitem']",
+                        "div.feed-shared-update-v2",
+                        "article"
+                    };
+
+                    string? postSelector = null;
+                    foreach (var selector in candidateSelectors)
+                    {
+                        var matches = await page.QuerySelectorAllAsync(selector);
+                        if (matches.Count > 0)
                         {
-                            _logger.LogInformation("No new posts after {Rounds} consecutive scrolls - stopping for '{Keyword}'.", emptyRounds, keyword);
+                            postSelector = selector;
+                            _logger.LogInformation("Using selector '{Selector}' for keyword '{Keyword}' ({Count} initial candidates).", selector, keyword, matches.Count);
                             break;
                         }
                     }
-                    else
+
+                    if (string.IsNullOrEmpty(postSelector))
                     {
-                        emptyRounds = 0;
+                        await CaptureDebugStateAsync(page, keyword);
+                        _logger.LogWarning("No result nodes matched for '{Keyword}'. Saved debug capture.", keyword);
+                        continue;
                     }
 
-                    // Smaller incremental scroll so virtualized batches render as we pass them.
-                    await page.EvaluateAsync("window.scrollBy(0, 1400)");
-                    await Task.Delay(2000);
+                    var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    int keptBefore = foundJobs.Count;
+                    int emptyRounds = 0;
+                    int maxScrolls = 60;
+
+                    for (int scroll = 0; scroll <= maxScrolls; scroll++)
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        var elements = await page.QuerySelectorAllAsync(postSelector);
+                        int newThisRound = 0;
+
+                        foreach (var element in elements)
+                        {
+                            try
+                            {
+                                var rawText = await TryReadPostTextAsync(element);
+                                if (string.IsNullOrWhiteSpace(rawText) || rawText.Length < 20) continue;
+
+                                var key = rawText.Trim();
+                                if (key.Length > 200) key = key.Substring(0, 200);
+                                if (!seenKeys.Add(key)) continue;
+
+                                var url = await ResolvePostUrlAsync(page, element);
+                                if (string.IsNullOrEmpty(url))
+                                {
+                                    _logger.LogDebug("Could not resolve valid post permalink for post '{Text}...'; skipping.", key.Substring(0, Math.Min(40, key.Length)));
+                                    continue;
+                                }
+
+                                if (!seenUrls.Add(url)) continue;
+
+                                foundJobs.Add(new ScoutedJob
+                                {
+                                    LinkedInUrl = url,
+                                    RawText = rawText,
+                                    KeywordMatched = keyword,
+                                    Board = BoardName
+                                });
+                                newThisRound++;
+
+                                if (foundJobs.Count - keptBefore >= targetPostsForKeyword)
+                                {
+                                    _logger.LogInformation("Reached target count of {Target} posts for keyword '{Keyword}'.", targetPostsForKeyword, keyword);
+                                    break;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to extract a post for '{Keyword}'.", keyword);
+                            }
+                        }
+
+                        int kept = foundJobs.Count - keptBefore;
+                        _logger.LogInformation("Keyword '{Keyword}' - scroll {Scroll}/{Max}: +{New} new, {Kept} total collected.", keyword, scroll, maxScrolls, newThisRound, kept);
+
+                        if (kept >= targetPostsForKeyword) break;
+
+                        if (newThisRound == 0)
+                        {
+                            emptyRounds++;
+                            if (emptyRounds >= 5)
+                            {
+                                _logger.LogInformation("No new posts after {Rounds} consecutive scrolls - stopping for '{Keyword}'.", emptyRounds, keyword);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            emptyRounds = 0;
+                        }
+
+                        // ── Trigger infinite scroll reliably ──
+                        try
+                        {
+                            if (elements.Count > 0)
+                            {
+                                await elements.Last().ScrollIntoViewIfNeededAsync();
+                            }
+                        }
+                        catch { }
+
+                        await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight)");
+                        await page.Keyboard.PressAsync("PageDown");
+                        await Task.Delay(1000);
+                        await page.Keyboard.PressAsync("PageDown");
+                        await Task.Delay(2000);
+
+                        // Check for "Show more results" button
+                        try
+                        {
+                            var showMoreBtn = await page.QuerySelectorAsync("button:has-text('Show more results'), button:has-text('See more posts'), button.artdeco-button--muted");
+                            if (showMoreBtn != null && await showMoreBtn.IsVisibleAsync())
+                            {
+                                await showMoreBtn.ClickAsync();
+                                await Task.Delay(2000);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    _logger.LogInformation("Finished keyword '{Keyword}'. Total kept: {Count}", keyword, foundJobs.Count - keptBefore);
+                }
+                catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+                {
+                    _logger.LogWarning("Playwright error during keyword '{Keyword}': {Message}. Attempting to recover page...", keyword, ex.Message);
+                    try
+                    {
+                        page = await GetOrCreatePageAsync(context);
+                    }
+                    catch (Exception recoveryEx)
+                    {
+                        _logger.LogError(recoveryEx, "Failed to recover page/context. Aborting remaining keywords.");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error scraping keyword '{Keyword}'.", keyword);
                 }
 
-                _logger.LogInformation("Finished keyword '{Keyword}'. Total kept: {Count}", keyword, foundJobs.Count - keptBefore);
-                
-                // Random human-like delay between searches
-                await Task.Delay(new Random().Next(3000, 7000));
+                // Random delay between searches
+                try { await Task.Delay(new Random().Next(4000, 8000), cancellationToken); } catch { }
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error scraping LinkedIn posts");
-            try 
+        }
+        finally
+        {
+            if (context != null)
             {
-                // Take a screenshot of whatever page LinkedIn is currently serving to debug why it can't find #username
-                if (System.IO.File.Exists("playwright-error.png")) System.IO.File.Delete("playwright-error.png");
-                // We don't have the 'page' variable in this scope, so we can't take a screenshot here easily.
-                // Let me move this logic inside the try block.
-            } catch {}
+                try { await context.CloseAsync(); } catch { }
+            }
+            if (playwright != null)
+            {
+                try { playwright.Dispose(); } catch { }
+            }
         }
 
         return foundJobs;
     }
 
-    /// <summary>
-    /// Resolves a post's permalink the only way LinkedIn's new SDUI search exposes it: open the post's
-    /// control menu, click "Copy link to post", and read the URL back from the clipboard.
-    /// Returns null if the menu/link couldn't be found, leaving the page menu closed.
-    /// </summary>
-    private async Task<string?> GetPostUrlViaMenuAsync(IPage page, IElementHandle postElement)
+    // ─── Browser / Context Helpers ───────────────────────────────────────────────
+
+    private static async Task<IBrowserContext> CreatePersistentContextAsync(IPlaywright playwright)
     {
+        Directory.CreateDirectory(SessionDir);
+        return await playwright.Chromium.LaunchPersistentContextAsync(SessionDir, new BrowserTypeLaunchPersistentContextOptions
+        {
+            Headless = false,
+            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            ViewportSize = new ViewportSize { Width = 1280, Height = 720 },
+            Permissions = new[] { "clipboard-read", "clipboard-write" },
+            Args = new[] { "--disable-blink-features=AutomationControlled" }
+        });
+    }
+
+    private async Task<IPage> GetOrCreatePageAsync(IBrowserContext context)
+    {
+        foreach (var p in context.Pages)
+        {
+            if (!p.IsClosed)
+            {
+                return p;
+            }
+        }
+
+        var newPage = await context.NewPageAsync();
+        await newPage.AddInitScriptAsync("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+        return newPage;
+    }
+
+    // ─── Login Flow ──────────────────────────────────────────────────────────────
+
+    private async Task EnsureLoggedInAsync(IPage page)
+    {
+        _logger.LogInformation("Checking LinkedIn login state...");
+
+        await page.GotoAsync("https://www.linkedin.com/feed/", new PageGotoOptions { WaitUntil = WaitUntilState.Load, Timeout = 30000 });
+        await Task.Delay(3000);
+
+        if (IsLoggedIn(page.Url))
+        {
+            try
+            {
+                var hasFeedDom = await page.QuerySelectorAsync(".global-nav, .scaffold-layout, [data-testid='home-feed'], div.feed-shared-update-v2");
+                if (hasFeedDom != null)
+                {
+                    _logger.LogInformation("✅ Already logged in from persistent session. URL: {Url}", page.Url);
+                    return;
+                }
+            }
+            catch (PlaywrightException) { }
+        }
+
+        _logger.LogInformation("Logging into LinkedIn...");
+        await page.GotoAsync("https://www.linkedin.com/login", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await Task.Delay(3000);
+
+        if (IsLoggedIn(page.Url))
+        {
+            _logger.LogInformation("✅ Auto-redirected to logged-in state. URL: {Url}", page.Url);
+            return;
+        }
+
+        if (!page.Url.Contains("checkpoint", StringComparison.OrdinalIgnoreCase))
+        {
+            var emailSelector = "input#username:visible, input#session_key:visible, input[name='session_key']:visible, input[type='email']:visible, input[autocomplete='username']:visible";
+            var passSelector = "input#password:visible, input#session_password:visible, input[name='session_password']:visible, input[type='password']:visible, input[autocomplete='current-password']:visible";
+
+            try
+            {
+                await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
+                await page.FillAsync(emailSelector, _email);
+                await page.FillAsync(passSelector, _password);
+
+                var signInBtn = await page.QuerySelectorAsync("button[type='submit']:visible, button[data-litms-control-urn*='login-submit']:visible");
+                if (signInBtn != null)
+                {
+                    await signInBtn.ClickAsync();
+                }
+                else
+                {
+                    await page.PressAsync(passSelector, "Enter");
+                }
+
+                try
+                {
+                    await page.WaitForURLAsync(url => !url.Contains("/login") || url.Contains("feed") || url.Contains("checkpoint"), new PageWaitForURLOptions { Timeout = 30000 });
+                }
+                catch (TimeoutException) { }
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogError("Could not find login form fields.");
+                try { await page.ScreenshotAsync(new PageScreenshotOptions { Path = "login_error.png" }); } catch { }
+                throw;
+            }
+        }
+
+        // Wait for feed or checkpoint
+        var feedLoaded = false;
+        var hitCheckpoint = false;
+        for (int i = 0; i < 60; i++)
+        {
+            var currentUrl = page.Url;
+
+            if (currentUrl.Contains("checkpoint", StringComparison.OrdinalIgnoreCase))
+            {
+                hitCheckpoint = true;
+                feedLoaded = true;
+                _logger.LogInformation("Detected checkpoint at URL: {Url} (after {Seconds}s)", currentUrl, i);
+                break;
+            }
+
+            if (IsLoggedIn(currentUrl))
+            {
+                feedLoaded = true;
+                _logger.LogInformation("Detected logged-in state at URL: {Url} (after {Seconds}s)", currentUrl, i);
+                break;
+            }
+
+            if (i > 5)
+            {
+                try
+                {
+                    var hasFeed = await page.QuerySelectorAsync("div.feed-shared-update-v2, [data-testid='home-feed'], .scaffold-layout, .global-nav");
+                    if (hasFeed != null)
+                    {
+                        feedLoaded = true;
+                        break;
+                    }
+                }
+                catch (PlaywrightException) { }
+            }
+
+            await Task.Delay(1000);
+        }
+
+        if (!feedLoaded)
+        {
+            _logger.LogError("Failed to reach feed/checkpoint after 60s. URL: {Url}", page.Url);
+            try { await page.ScreenshotAsync(new PageScreenshotOptions { Path = "login_error.png" }); } catch { }
+            throw new TimeoutException($"Failed to reach LinkedIn feed after login. URL: {page.Url}");
+        }
+
+        if (hitCheckpoint || (page.Url.Contains("checkpoint", StringComparison.OrdinalIgnoreCase) && !IsLoggedIn(page.Url)))
+        {
+            _logger.LogWarning("⚠️ Security checkpoint detected! Please complete verification in the browser window...");
+            for (int i = 0; i < 120; i++)
+            {
+                var checkUrl = page.Url;
+                if (IsLoggedIn(checkUrl) && !checkUrl.Contains("checkpoint", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation("✅ Checkpoint cleared! URL: {Url}", checkUrl);
+                    break;
+                }
+                await Task.Delay(1000);
+            }
+
+            if (!IsLoggedIn(page.Url) || page.Url.Contains("checkpoint", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogError("Checkpoint not cleared within 120s. URL: {Url}", page.Url);
+                throw new TimeoutException("LinkedIn checkpoint not cleared in time.");
+            }
+        }
+
+        await Task.Delay(4000);
+        _logger.LogInformation("✅ Login successful — feed loaded. URL: {Url}", page.Url);
+    }
+
+    // ─── URL / Logged In Check ───────────────────────────────────────────────────
+
+    private static bool IsLoggedIn(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+
+        var loginPaths = new[] { "/login", "/uas/login", "/checkpoint/challenge", "/checkpoint/lg/login-submit" };
+        var uri = new Uri(url, UriKind.RelativeOrAbsolute);
+        var path = uri.IsAbsoluteUri ? uri.AbsolutePath.TrimEnd('/') : url;
+
+        foreach (var lp in loginPaths)
+        {
+            if (path.Equals(lp, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        var loggedInIndicators = new[] { "feed", "home", "mynetwork", "jobs", "messaging", "notifications", "search" };
+        foreach (var ind in loggedInIndicators)
+        {
+            if (url.Contains(ind, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return url.Contains("linkedin.com", StringComparison.OrdinalIgnoreCase)
+            && !url.Contains("/login", StringComparison.OrdinalIgnoreCase)
+            && !url.Contains("/checkpoint", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ─── Post Text Extraction ────────────────────────────────────────────────────
+
+    private async Task<string> TryReadPostTextAsync(IElementHandle element)
+    {
+        var candidates = new[]
+        {
+            "[data-testid='expandable-text-box']",
+            "[data-testid='feed-activity-card']",
+            ".feed-shared-update-v2__description-wrapper",
+            ".feed-shared-text",
+            ".feed-shared-inline-show-more-text",
+            "div[class*='update-components-text']",
+            "div[class*='text-body']",
+            "span[class*='text-body']",
+            "p"
+        };
+
+        foreach (var selector in candidates)
+        {
+            try
+            {
+                var target = await element.QuerySelectorAsync(selector);
+                if (target != null)
+                {
+                    var text = await target.InnerTextAsync();
+                    if (!string.IsNullOrWhiteSpace(text) && text.Trim().Length >= 20)
+                        return text.Trim();
+                }
+            }
+            catch (PlaywrightException) { }
+        }
+
+        return string.Empty;
+    }
+
+    // ─── Post Permalink Extraction ───────────────────────────────────────────────
+
+    private async Task<string?> ResolvePostUrlAsync(IPage page, IElementHandle postElement)
+    {
+        // 1. Check direct post permalink anchors (IGNORE profile / company / group links)
+        var postLinkSelectors = new[]
+        {
+            "a[href*='/feed/update/urn:li:activity:']",
+            "a[href*='/feed/update/urn:li:share:']",
+            "a[href*='/feed/update/urn:li:ugcPost:']",
+            "a[href*='/feed/update/']",
+            "a[href*='/posts/']",
+            "a.update-components-actor__sub-description-link",
+            "a.feed-shared-actor__sub-description-link",
+            "a[href*='activity-']",
+            "a[href*='urn:li:activity']"
+        };
+
+        foreach (var selector in postLinkSelectors)
+        {
+            try
+            {
+                var anchor = await postElement.QuerySelectorAsync(selector);
+                if (anchor != null)
+                {
+                    var href = await anchor.GetAttributeAsync("href");
+                    if (!string.IsNullOrWhiteSpace(href) && IsValidPostUrl(href))
+                    {
+                        return CleanPostUrl(href);
+                    }
+                }
+            }
+            catch (PlaywrightException) { }
+        }
+
+        // 2. Check for URN attributes on the container or children
         try
         {
-            // The "..." overflow button. aria-label is the stable hook: "Open control menu for post by {Author}".
-            var menuButton = await postElement.QuerySelectorAsync("button[aria-label*='Open control menu']");
-            if (menuButton == null) return null;
+            var urn = await postElement.GetAttributeAsync("data-urn")
+                   ?? await postElement.GetAttributeAsync("data-id")
+                   ?? await postElement.GetAttributeAsync("data-chameleon-result-urn")
+                   ?? await postElement.GetAttributeAsync("data-activity-urn");
 
-            await menuButton.ScrollIntoViewIfNeededAsync();
-            await menuButton.ClickAsync();
+            if (!string.IsNullOrEmpty(urn))
+            {
+                var match = Regex.Match(urn, @"urn:li:(activity|share|ugcPost):(\d+)");
+                if (match.Success)
+                {
+                    return $"https://www.linkedin.com/feed/update/{match.Value}/";
+                }
+            }
+        }
+        catch (PlaywrightException) { }
 
-            // The menu renders in a portal at page level (not inside the post element), so query the page.
-            // Match the menu item by its visible text rather than a randomized class.
-            var copyItem = page.GetByText("Copy link to post", new PageGetByTextOptions { Exact = false });
-            await copyItem.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 4000 });
-            await copyItem.First.ClickAsync();
+        // 3. Fallback: Click "..." Menu -> "Copy link to post" -> Read clipboard
+        return await GetPostUrlViaMenuAsync(page, postElement);
+    }
 
-            // LinkedIn shows a "Link copied" toast; the permalink is now on the clipboard.
+    private async Task<string?> GetPostUrlViaMenuAsync(IPage page, IElementHandle postElement)
+    {
+        var menuButtonSelectors = new[]
+        {
+            "button[aria-label*='Open control menu']",
+            "button[aria-label*='control menu']",
+            "button[aria-label*='More actions']",
+            "button[aria-label*='More options']",
+            "button[aria-label*='options for this update']",
+            "button.feed-shared-control-menu__trigger",
+            "button.artdeco-dropdown__trigger",
+            "div.feed-shared-control-menu button"
+        };
+
+        try
+        {
+            IElementHandle? menuBtn = null;
+            foreach (var sel in menuButtonSelectors)
+            {
+                menuBtn = await postElement.QuerySelectorAsync(sel);
+                if (menuBtn != null) break;
+            }
+
+            if (menuBtn == null) return null;
+
+            await menuBtn.ScrollIntoViewIfNeededAsync();
+            await menuBtn.ClickAsync();
             await Task.Delay(400);
+
+            // Click copy item
+            var copyItem = page.Locator("text='Copy link to post', text='Copy link'").First;
+            await copyItem.WaitForAsync(new LocatorWaitForOptions { Timeout = 3000 });
+            await copyItem.ClickAsync();
+
+            await Task.Delay(500);
             var url = await page.EvaluateAsync<string>("() => navigator.clipboard.readText()");
 
-            if (!string.IsNullOrWhiteSpace(url) && url.Contains("linkedin.com"))
-                return url.Trim();
+            // Dismiss menu
+            try { await page.Keyboard.PressAsync("Escape"); } catch { }
+
+            if (!string.IsNullOrWhiteSpace(url) && IsValidPostUrl(url))
+            {
+                return CleanPostUrl(url);
+            }
 
             return null;
         }
         catch (Exception)
         {
-            // Menu didn't open or item not found — make sure any open menu is dismissed before the next post.
             try { await page.Keyboard.PressAsync("Escape"); } catch { }
             return null;
         }
     }
 
-    /// <summary>
-    /// Dumps the current page screenshot and HTML to a scrape-debug/ folder so the real, current
-    /// LinkedIn DOM can be inspected when 0 results are found. This is the ground truth for updating
-    /// selectors (which LinkedIn rotates frequently) or spotting a login/activity wall vs an empty result set.
-    /// </summary>
+    private static bool IsValidPostUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+
+        // Reject profile, company, school, and generic group links
+        if (url.Contains("/in/", StringComparison.OrdinalIgnoreCase) && !url.Contains("activity", StringComparison.OrdinalIgnoreCase)) return false;
+        if (url.Contains("/company/", StringComparison.OrdinalIgnoreCase)) return false;
+        if (url.Contains("/school/", StringComparison.OrdinalIgnoreCase)) return false;
+
+        return url.Contains("/feed/update/", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("/posts/", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("urn:li:activity", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("urn:li:share", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("urn:li:ugcPost", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("highlightedUpdateUrn", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string CleanPostUrl(string href)
+    {
+        if (href.StartsWith("/"))
+        {
+            href = "https://www.linkedin.com" + href;
+        }
+
+        // Clean tracking params unless it contains highlightedUpdateUrn
+        var qIdx = href.IndexOf('?');
+        if (qIdx > 0 && !href.Contains("highlightedUpdateUrn", StringComparison.OrdinalIgnoreCase))
+        {
+            href = href.Substring(0, qIdx);
+        }
+
+        return href.Trim();
+    }
+
+    // ─── Diagnostic Capture ──────────────────────────────────────────────────────
+
     private async Task CaptureDebugStateAsync(IPage page, string keyword)
     {
         try
@@ -311,7 +643,6 @@ public class LinkedInScraperService : IJobBoardScraper
             var dir = Path.Combine(Directory.GetCurrentDirectory(), "scrape-debug");
             Directory.CreateDirectory(dir);
 
-            // Safe file name from the keyword
             var safe = string.Concat(keyword.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
 
             await page.ScreenshotAsync(new PageScreenshotOptions
@@ -323,7 +654,7 @@ public class LinkedInScraperService : IJobBoardScraper
             var html = await page.ContentAsync();
             await File.WriteAllTextAsync(Path.Combine(dir, $"{safe}.html"), html);
 
-            _logger.LogInformation("Saved debug capture for '{Keyword}' (url: {Url}) to {Dir}", keyword, page.Url, dir);
+            _logger.LogInformation("Saved debug capture for '{Keyword}' to {Dir}", keyword, dir);
         }
         catch (Exception ex)
         {

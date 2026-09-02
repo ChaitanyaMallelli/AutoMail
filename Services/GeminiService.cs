@@ -293,14 +293,16 @@ Do not output greetings or conversation. ONLY bullet points. Keep it extremely b
     {
         try
         {
-            var prompt = $"Is this a developer job requiring 3+ years experience? Reply TRUE or FALSE only.\n\n{postText[..Math.Min(postText.Length, 500)]}";
+            var clean = postText.Replace("\r", " ").Replace("\n", " ").Trim();
+            var truncated = clean.Length > 1000 ? clean.Substring(0, 1000) : clean;
+            var prompt = $"Is this LinkedIn post hiring or recruiting for a software/developer/tech role? Reply TRUE if it is hiring for tech roles, or FALSE if it is a job seeker post, course ad, or unrelated. Reply TRUE or FALSE only.\n\n{truncated}";
             var response = await CallGeminiAsync(prompt);
-            return response.Trim().Equals("TRUE", StringComparison.OrdinalIgnoreCase);
+            return response.Trim().StartsWith("TRUE", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error filtering post via Gemini");
-            return false;
+            return true; // default to true on AI error so we don't drop valid posts
         }
     }
 
@@ -314,11 +316,23 @@ Do not output greetings or conversation. ONLY bullet points. Keep it extremely b
         try
         {
             var numbered = string.Join("\n---\n", posts.Select((p, i) =>
-                $"[{i + 1}] {p[..Math.Min(p.Length, 400)]}"));
-            var prompt = $@"For each numbered post below, reply TRUE if it's a developer job requiring 3+ years experience, FALSE otherwise.
-Return ONLY a JSON array like [true,false,true] with exactly {posts.Count} values, no other text.
+            {
+                var clean = p.Replace("\r", " ").Replace("\n", " ").Trim();
+                var truncated = clean.Length > 800 ? clean.Substring(0, 800) : clean;
+                return $"[{i + 1}] {truncated}";
+            }));
+
+            var prompt = $@"You are evaluating LinkedIn search posts. For each numbered post below, determine if it is a HIRING/RECRUITING post for software/tech/developer roles (e.g. .NET, C#, Fullstack, Backend, Software Engineer).
+
+Rules:
+- Return TRUE if someone is HIRING, recruiting, or sharing a job opening for software/tech roles.
+- Return FALSE if the poster is a job seeker (e.g. 'I am looking for a job', 'Open to work'), promoting courses/training, or non-hiring content.
+- If it is a job opening/hiring post for tech roles, return TRUE.
+
+Return ONLY a JSON array of booleans like [true,false,true] with exactly {posts.Count} items, no other text or markdown.
 
 {numbered}";
+
             var response = await CallGeminiAsync(prompt);
             var cleaned = CleanJsonResponse(response);
             var results = JsonConvert.DeserializeObject<List<bool>>(cleaned);
@@ -328,6 +342,7 @@ Return ONLY a JSON array like [true,false,true] with exactly {posts.Count} value
         {
             _logger.LogWarning(ex, "Batch relevance check failed, falling back to individual calls.");
         }
+
         // Fallback: individual calls
         var fallback = new List<bool>();
         foreach (var p in posts) fallback.Add(await IsPostRelevantAsync(p));

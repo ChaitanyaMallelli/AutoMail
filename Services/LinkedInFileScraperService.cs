@@ -12,6 +12,18 @@ namespace JobAutomation.Services;
 /// </summary>
 public static class LinkedInFileScraperService
 {
+    public static string CanonicalizeUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return string.Empty;
+
+        var normalized = url.Trim();
+        normalized = normalized.Split('#')[0];
+        normalized = normalized.TrimEnd('/');
+        normalized = normalized.Split('?')[0];
+
+        return normalized.Trim();
+    }
+
     public static List<ScoutedJob> ParseLinks(string filePath)
     {
         var jobs = new List<ScoutedJob>();
@@ -39,18 +51,16 @@ public static class LinkedInFileScraperService
 
             if (!line.StartsWith("http", StringComparison.OrdinalIgnoreCase)) continue;
 
-            // Normalize: drop query string for dedup so the same post with different
-            // ?utm_... params isn't processed twice.
-            var url = line;
-            var canonical = url.Split('?')[0].TrimEnd('/');
+            var canonical = CanonicalizeUrl(line);
+            if (string.IsNullOrEmpty(canonical)) continue;
             if (!seen.Add(canonical)) continue;
 
             jobs.Add(new ScoutedJob
             {
-                LinkedInUrl = url,
+                LinkedInUrl = canonical,
                 KeywordMatched = currentKeyword,
                 Board = "LinkedIn",
-                JobId = AutoApplyService.ExtractJobId(url),
+                JobId = AutoApplyService.ExtractJobId(canonical),
             });
         }
 

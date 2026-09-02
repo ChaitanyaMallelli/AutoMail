@@ -6,6 +6,8 @@ namespace JobAutomation.Services;
 
 public class JobScoutManager
 {
+    private static readonly TimeSpan AutoApplyInterval = TimeSpan.FromSeconds(12);
+
     private readonly IEnumerable<IJobBoardScraper> _scrapers;
     private readonly GeminiService _gemini;
     private readonly AppDbContext _dbContext;
@@ -15,11 +17,11 @@ public class JobScoutManager
 
     private readonly List<string> _searchKeywords = new()
     {
-        "hiring for dotnet developer",
-        "dotnet developer",
-        ".net developer",
-        ".net developer banglore",
-        ".net developer in dubai"
+        ".net developer hyderabad",
+        // "dotnet developer hyderabad",
+        // ".net developer hyderabad",
+        // ".net developer remote",
+        // "dotnet developer remote"
     };
 
     public JobScoutManager(
@@ -157,8 +159,9 @@ public class JobScoutManager
         _logger.LogInformation("Saved {Count} jobs. {Matches} match(es).", toSave.Count, toAlert.Count);
 
         // ── Auto-apply or send Telegram alert (conditional) ──────────────
-        foreach (var job in toAlert)
+        for (var i = 0; i < toAlert.Count; i++)
         {
+            var job = toAlert[i];
             if (cancellationToken.IsCancellationRequested) break;
 
             if (autoApplyEnabled)
@@ -166,6 +169,12 @@ public class JobScoutManager
                 // Auto-apply handles Telegram notification internally
                 try { await _autoApply.ProcessScoutedJobAsync(job, chatId, cancellationToken); }
                 catch (Exception ex) { _logger.LogError(ex, "AutoApply failed for {Url}", job.LinkedInUrl); }
+
+                if (i < toAlert.Count - 1)
+                {
+                    _logger.LogInformation("Scout apply: pacing next job in {Seconds}s (5 jobs/minute).", AutoApplyInterval.TotalSeconds);
+                    await Task.Delay(AutoApplyInterval, cancellationToken);
+                }
             }
             else
             {
@@ -209,17 +218,26 @@ public class JobScoutManager
         var doneUrls = (await _dbContext.AutoApplyLogs
             .Where(l => l.JobUrl != null)
             .Select(l => l.JobUrl!)
-            .ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToListAsync()).
+            Select(LinkedInFileScraperService.CanonicalizeUrl).
+            Where(u => !string.IsNullOrEmpty(u)).
+            ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var pending = links.Where(l => !doneUrls.Contains(l.LinkedInUrl)).Take(maxApplies).ToList();
+        var pending = links
+            .Select(job => { job.LinkedInUrl = LinkedInFileScraperService.CanonicalizeUrl(job.LinkedInUrl); return job; })
+            .Where(job => !doneUrls.Contains(job.LinkedInUrl))
+            .Take(maxApplies)
+            .ToList();
+
         _logger.LogInformation("File apply: {Pending} pending (cap {Cap}); {Done} already processed.",
             pending.Count, maxApplies, doneUrls.Count);
 
         var ct = FileApplyProgressTracker.Begin(pending.Count);
         try
         {
-            foreach (var job in pending)
+            for (var i = 0; i < pending.Count; i++)
             {
+                var job = pending[i];
                 if (ct.IsCancellationRequested)
                 {
                     _logger.LogInformation("File apply: stop requested — halting.");
@@ -246,6 +264,12 @@ public class JobScoutManager
                 {
                     _logger.LogError(ex, "File apply: error processing {Url}", job.LinkedInUrl);
                     FileApplyProgressTracker.Record("Failed", "Unknown", "Unknown", ex.Message);
+                }
+
+                if (i < pending.Count - 1)
+                {
+                    _logger.LogInformation("File apply: pacing next job in {Seconds}s (5 jobs/minute).", AutoApplyInterval.TotalSeconds);
+                    await Task.Delay(AutoApplyInterval, ct);
                 }
             }
         }

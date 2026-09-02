@@ -2,16 +2,15 @@
   "linkedin_email": "9008815099chaitu@gmail.com",
   "linkedin_password": "9008815099@Yybl",
   "keywords": [
-    "hiring for dotnet developer",
-    "dotnet developer",
-    ".net developer",
-    ".net developer banglore",
-    ".net developer in dubai"
+    "hiring for dotnet developer hyderabad"
   ],
-  "max_posts_per_keyword": 300,
+  "max_posts_per_keyword": 50,
   "output_file": "../scraped_links.txt",
   "headless": false,
-  "max_scrolls": 30,
+  "max_scrolls": 60,
   "scroll_delay_ms": 2000,
-  "search_delay_range": [3000, 7000]
+  "search_delay_range": [
+    3000,
+    7000
+  ]
 }

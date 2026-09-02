@@ -70,29 +70,44 @@ public class AutoApplyService
                 return await SkipAsync(log, fastDup, chatId, notify: false, ct);
             }
 
-            // ── 3. Fetch URL + Gemini extraction ─────────────────────────────
-            string htmlContent;
-            try
+            // ── 3. Content extraction via Gemini ─────────────────────────────
+            string contentForExtraction = "";
+            if (!string.IsNullOrWhiteSpace(scoutedJob.RawText) && scoutedJob.RawText.Trim().Length > 20)
             {
-                using var http = new HttpClient();
-                http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; AutoMail/1.0)");
-                http.Timeout = TimeSpan.FromSeconds(20);
-                htmlContent = await http.GetStringAsync(scoutedJob.LinkedInUrl, ct);
+                // Use the raw post text extracted directly by Playwright during the scrape
+                contentForExtraction = scoutedJob.RawText;
             }
-            catch (Exception ex)
+            else
             {
-                log.CompanyName = "Unknown";
-                log.JobTitle    = "Unknown";
-                _logger.LogWarning("AutoApply: failed to fetch URL {Url}: {Err}", scoutedJob.LinkedInUrl, ex.Message);
-                return await FailAsync(log, $"URL fetch failed: {ex.Message}", chatId, ct);
+                try
+                {
+                    using var http = new HttpClient();
+                    http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+                    http.Timeout = TimeSpan.FromSeconds(20);
+                    contentForExtraction = await http.GetStringAsync(scoutedJob.LinkedInUrl, ct);
+                }
+                catch (Exception ex)
+                {
+                    log.CompanyName = "Unknown";
+                    log.JobTitle    = "Unknown";
+                    _logger.LogWarning("AutoApply: failed to fetch URL {Url}: {Err}", scoutedJob.LinkedInUrl, ex.Message);
+                    return await FailAsync(log, $"URL fetch failed: {ex.Message}", chatId, ct);
+                }
             }
 
-            var extraction = await _geminiService.ExtractJobDetailsFromUrlContentAsync(htmlContent, scoutedJob.LinkedInUrl);
+            var extraction = await _geminiService.ExtractJobDetailsFromUrlContentAsync(contentForExtraction, scoutedJob.LinkedInUrl);
             if (!extraction.IsSuccessful)
             {
                 log.CompanyName = "Unknown";
                 log.JobTitle    = "Unknown";
                 return await FailAsync(log, $"Extraction failed: {extraction.ErrorMessage}", chatId, ct);
+            }
+
+            if (string.IsNullOrWhiteSpace(extraction.CompanyName) || string.IsNullOrWhiteSpace(extraction.Role))
+            {
+                log.CompanyName = extraction.CompanyName ?? "Unknown";
+                log.JobTitle = extraction.Role ?? "Unknown";
+                return await FailAsync(log, "Extraction did not identify both company and role", chatId, ct);
             }
 
             log.CompanyName       = extraction.CompanyName ?? "Unknown";
@@ -101,7 +116,7 @@ public class AutoApplyService
             log.ExperienceRequired = extraction.ExperienceRequired;
 
             // Detect work mode from raw post text
-            log.WorkMode = DetectWorkMode(scoutedJob.RawText ?? htmlContent);
+            log.WorkMode = DetectWorkMode(scoutedJob.RawText ?? contentForExtraction);
 
             // ── 4. Full duplicate check (now we have company + role) ─────────
             var fullDup = await FullDuplicateCheckAsync(log.CompanyName, log.JobTitle, ct);
@@ -176,9 +191,13 @@ public class AutoApplyService
             // ── 10. Recruiter email discovery ────────────────────────────────
             if (string.IsNullOrWhiteSpace(extraction.RecruiterEmail))
             {
-                var found = await _emailFinder.FindRecruiterEmailAsync(extraction.CompanyName, extraction.Role);
-                if (!string.IsNullOrWhiteSpace(found))
-                    extraction.RecruiterEmail = found;
+                // Only call email finder if we have company name and role
+                if (!string.IsNullOrWhiteSpace(extraction.CompanyName) && !string.IsNullOrWhiteSpace(extraction.Role))
+                {
+                    var found = await _emailFinder.FindRecruiterEmailAsync(extraction.CompanyName, extraction.Role);
+                    if (!string.IsNullOrWhiteSpace(found))
+                        extraction.RecruiterEmail = found;
+                }
             }
 
             // ── 11. Save JobPost ─────────────────────────────────────────────
@@ -296,14 +315,20 @@ public class AutoApplyService
 
     private async Task<string?> FastDuplicateCheckAsync(string url, string? jobId, CancellationToken ct)
     {
-        if (await _dbContext.AutoApplyLogs.AnyAsync(l => l.JobUrl == url, ct))
+        var normalizedUrl = LinkedInFileScraperService.CanonicalizeUrl(url);
+        var allLogUrls = await _dbContext.AutoApplyLogs
+            .Where(l => l.JobUrl != null)
+            .Select(l => l.JobUrl!)
+            .ToListAsync(ct);
+
+        if (allLogUrls.Any(existing => LinkedInFileScraperService.CanonicalizeUrl(existing) == normalizedUrl))
             return "Duplicate URL already in AutoApplyLogs";
 
         if (!string.IsNullOrWhiteSpace(jobId) &&
             await _dbContext.AutoApplyLogs.AnyAsync(l => l.JobId == jobId, ct))
             return $"Duplicate Job ID '{jobId}' already in AutoApplyLogs";
 
-        if (await _dbContext.JobPosts.AnyAsync(j => j.RawContent == url && j.Status != JobStatus.Skipped, ct))
+        if (await _dbContext.JobPosts.AnyAsync(j => j.RawContent != null && LinkedInFileScraperService.CanonicalizeUrl(j.RawContent) == normalizedUrl && j.Status != JobStatus.Skipped, ct))
             return "URL already manually applied via JobPosts";
 
         return null;
@@ -411,7 +436,7 @@ public class AutoApplyService
                 RecipientEmail = toEmail,
                 CreatedAt      = DateTime.UtcNow
             };
-            // await _emailService.SendEmailAsync(tempEmail, profile);
+            await _emailService.SendEmailAsync(tempEmail, profile);
         }
         catch (Exception ex)
         {

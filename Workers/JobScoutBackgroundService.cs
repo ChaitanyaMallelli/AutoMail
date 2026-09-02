@@ -14,11 +14,11 @@ public class JobScoutBackgroundService : BackgroundService
     // The user's exact keywords
     private readonly List<string> _searchKeywords = new()
     {
-        "hiring for dotnet developer",
-        "dotnet developer",
-        ".net developer",
-        ".net developer banglore",
-        ".net developer in dubai"
+        ".net developer hyderabad",
+        // "dotnet developer hyderabad",
+        // ".net developer hyderabad",
+        // ".net developer remote",
+        // "dotnet developer remote"
     };
 
     public JobScoutBackgroundService(IServiceProvider serviceProvider, ILogger<JobScoutBackgroundService> logger)

@@ -2,8 +2,7 @@
 LinkedIn Post Link Scraper
 ==========================
 Logs into LinkedIn, searches for posts using configured keywords (past 24h),
-collects post permalink URLs via the "Copy link to post" menu trick,
-and saves them to a text file.
+collects post permalink URLs, and saves them to a text file.
 
 Mirrors the logic from the .NET LinkedInScraperService.cs.
 """
@@ -13,9 +12,10 @@ import os
 import sys
 import time
 import random
+import re
 import logging
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -55,35 +55,115 @@ def capture_debug_state(page, keyword: str):
         log.warning("Failed to capture debug state for '%s': %s", keyword, e)
 
 
-# ─── Permalink extraction ────────────────────────────────────────────────────
+# ─── Post URL Helpers ────────────────────────────────────────────────────────
+def is_valid_post_url(url: str) -> bool:
+    if not url:
+        return False
+    u = url.lower()
+    if "/in/" in u and "activity" not in u:
+        return False
+    if "/company/" in u or "/school/" in u:
+        return False
+    return (
+        "/feed/update/" in u
+        or "/posts/" in u
+        or "urn:li:activity" in u
+        or "urn:li:share" in u
+        or "urn:li:ugcpost" in u
+        or "highlightedupdateurn" in u
+    )
+
+
+def clean_post_url(href: str) -> str:
+    if href.startswith("/"):
+        href = "https://www.linkedin.com" + href
+    if "?" in href and "highlightedUpdateUrn" not in href:
+        href = href.split("?")[0]
+    return href.strip()
+
+
+def resolve_post_url(page, post_element) -> str | None:
+    """Extract post URL via direct anchor, URN attribute, or 3-dots menu."""
+    # 1. Direct post permalink anchors
+    selectors = [
+        "a[href*='/feed/update/urn:li:activity:']",
+        "a[href*='/feed/update/urn:li:share:']",
+        "a[href*='/feed/update/urn:li:ugcPost:']",
+        "a[href*='/feed/update/']",
+        "a[href*='/posts/']",
+        "a.update-components-actor__sub-description-link",
+        "a.feed-shared-actor__sub-description-link",
+        "a[href*='activity-']",
+        "a[href*='urn:li:activity']",
+    ]
+    for sel in selectors:
+        try:
+            anchor = post_element.query_selector(sel)
+            if anchor:
+                href = anchor.get_attribute("href")
+                if href and is_valid_post_url(href):
+                    return clean_post_url(href)
+        except Exception:
+            pass
+
+    # 2. URN attributes
+    for attr in ["data-urn", "data-id", "data-chameleon-result-urn", "data-activity-urn"]:
+        try:
+            val = post_element.get_attribute(attr)
+            if val:
+                match = re.search(r"urn:li:(activity|share|ugcPost):(\d+)", val)
+                if match:
+                    return f"https://www.linkedin.com/feed/update/{match.group(0)}/"
+        except Exception:
+            pass
+
+    # 3. Via 3-dots menu
+    return get_post_url_via_menu(page, post_element)
+
+
 def get_post_url_via_menu(page, post_element) -> str | None:
-    """
-    Click the post's "..." menu → "Copy link to post" → read clipboard.
-    Returns the LinkedIn URL or None.
-    """
+    """Click post's '...' menu → 'Copy link to post' → read clipboard."""
+    menu_selectors = [
+        "button[aria-label*='Open control menu']",
+        "button[aria-label*='control menu']",
+        "button[aria-label*='More actions']",
+        "button[aria-label*='More options']",
+        "button[aria-label*='options for this update']",
+        "button.feed-shared-control-menu__trigger",
+        "button.artdeco-dropdown__trigger",
+        "div.feed-shared-control-menu button",
+    ]
     try:
-        menu_btn = post_element.query_selector("button[aria-label*='Open control menu']")
+        menu_btn = None
+        for sel in menu_selectors:
+            menu_btn = post_element.query_selector(sel)
+            if menu_btn:
+                break
+
         if not menu_btn:
             return None
 
         menu_btn.scroll_into_view_if_needed()
         menu_btn.click()
-
-        # The menu renders in a portal at page level, so use page-level locator.
-        copy_item = page.get_by_text("Copy link to post", exact=False)
-        copy_item.first.wait_for(timeout=4000)
-        copy_item.first.click()
-
-        # Small delay for the clipboard write
         time.sleep(0.4)
+
+        copy_item = page.locator("text='Copy link to post', text='Copy link'").first
+        copy_item.wait_for(timeout=3000)
+        copy_item.click()
+
+        time.sleep(0.5)
         url = page.evaluate("() => navigator.clipboard.readText()")
 
-        if url and "linkedin.com" in url:
-            return url.strip()
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+        if url and is_valid_post_url(url):
+            return clean_post_url(url)
         return None
 
     except Exception:
-        # Dismiss any open menu before moving to next post
         try:
             page.keyboard.press("Escape")
         except Exception:
@@ -93,21 +173,102 @@ def get_post_url_via_menu(page, post_element) -> str | None:
 
 # ─── URL helpers ──────────────────────────────────────────────────────────────
 def _is_logged_in(url: str) -> bool:
-    """Check if the current URL indicates a successful login (feed, home, etc.)."""
-    # After login LinkedIn may land on /feed, /home, / (root), or /mynetwork etc.
-    # The key is: we're NOT on /login or /checkpoint anymore.
-    from urllib.parse import urlparse
+    """Check if current URL indicates a successful login."""
     path = urlparse(url).path.rstrip("/")
     login_paths = {"/login", "/uas/login", "/checkpoint/challenge", "/checkpoint/lg/login-submit"}
-    # If we're on the root or any non-login path, we're in.
     if path in login_paths:
         return False
-    # Also check for common logged-in indicators
     logged_in_indicators = ["feed", "home", "mynetwork", "jobs", "messaging", "notifications", "search"]
     if path == "" or any(ind in url for ind in logged_in_indicators):
         return True
-    # If it's a linkedin.com page that's NOT login/checkpoint, assume logged in
     return "linkedin.com" in url and "/login" not in url and "/checkpoint" not in url
+
+
+def _ensure_logged_in(page, email: str, password: str):
+    log.info("Checking LinkedIn login state...")
+    page.goto("https://www.linkedin.com/feed/", wait_until="load")
+    time.sleep(3)
+
+    if _is_logged_in(page.url):
+        has_feed = page.query_selector(
+            ".global-nav, .scaffold-layout, [data-testid='home-feed'], div.feed-shared-update-v2"
+        )
+        if has_feed:
+            log.info("✅ Already logged in from persistent session. URL: %s", page.url)
+            return
+
+    log.info("Logging into LinkedIn...")
+    page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+    time.sleep(3)
+
+    if _is_logged_in(page.url):
+        log.info("✅ Auto-redirected to logged-in state. URL: %s", page.url)
+        return
+
+    if "checkpoint" not in page.url:
+        log.info("Filling credentials...")
+        email_sel = (
+            "input#username:visible, input#session_key:visible, "
+            "input[name='session_key']:visible, input[type='email']:visible, "
+            "input[autocomplete='username']:visible"
+        )
+        pass_sel = (
+            "input#password:visible, input#session_password:visible, "
+            "input[name='session_password']:visible, input[type='password']:visible, "
+            "input[autocomplete='current-password']:visible"
+        )
+
+        try:
+            page.wait_for_selector(email_sel, timeout=10000)
+            page.fill(email_sel, email)
+            page.fill(pass_sel, password)
+
+            sign_in_btn = page.query_selector("button[type='submit']:visible, button[data-litms-control-urn*='login-submit']:visible")
+            if sign_in_btn:
+                sign_in_btn.click()
+            else:
+                page.press(pass_sel, "Enter")
+
+            try:
+                page.wait_for_url(lambda url: "/login" not in url, timeout=30000)
+            except PlaywrightTimeout:
+                pass
+        except PlaywrightTimeout:
+            log.error("Could not find login form fields.")
+            page.screenshot(path=str(Path(__file__).parent / "login_error.png"))
+            raise
+
+    feed_loaded = False
+    for i in range(60):
+        current_url = page.url
+        if _is_logged_in(current_url) or "checkpoint" in current_url:
+            feed_loaded = True
+            break
+        if i > 5:
+            has_feed = page.query_selector("div.feed-shared-update-v2, [data-testid='home-feed'], .scaffold-layout, .global-nav")
+            if has_feed:
+                feed_loaded = True
+                break
+        time.sleep(1)
+
+    if not feed_loaded:
+        log.error("Failed to reach feed/checkpoint after 60s. URL: %s", page.url)
+        page.screenshot(path=str(Path(__file__).parent / "login_error.png"))
+        raise RuntimeError(f"Failed to reach LinkedIn feed after login. URL: {page.url}")
+
+    if "checkpoint" in page.url and not _is_logged_in(page.url):
+        log.warning("⚠️ Security checkpoint detected! Please solve verification in browser window...")
+        for _ in range(120):
+            if _is_logged_in(page.url):
+                log.info("✅ Checkpoint cleared!")
+                break
+            time.sleep(1)
+        else:
+            log.error("Checkpoint not cleared within 120s.")
+            raise RuntimeError("LinkedIn checkpoint not cleared in time.")
+
+    time.sleep(4)
+    log.info("✅ Login successful — feed loaded. URL: %s", page.url)
 
 
 # ─── Main scraper ─────────────────────────────────────────────────────────────
@@ -120,240 +281,156 @@ def run_scraper():
     max_posts = config.get("max_posts_per_keyword", 300)
     output_file = config.get("output_file", "../scraped_links.txt")
     headless = config.get("headless", False)
-    max_scrolls = config.get("max_scrolls", 30)
-    scroll_delay = config.get("scroll_delay_ms", 2000) / 1000.0
-    delay_range = config.get("search_delay_range", [3000, 7000])
+    max_scrolls = config.get("max_scrolls", 25)
+    delay_range = config.get("search_delay_range", [4000, 8000])
 
-    # Resolve output path relative to this script's directory
-    output_path = Path(__file__).parent / output_file
-    output_path = output_path.resolve()
+    output_path = (Path(__file__).parent / output_file).resolve()
+    session_dir = str(Path(__file__).parent / ".linkedin-session")
+    os.makedirs(session_dir, exist_ok=True)
 
     log.info("Output file: %s", output_path)
     log.info("Keywords: %s", keywords)
-    log.info("Max posts/keyword: %d | Headless: %s", max_posts, headless)
 
-    # Collect results: { keyword: [url, ...] }
     results: dict[str, list[str]] = {}
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=headless)
-        context = browser.new_context(
+        context = pw.chromium.launch_persistent_context(
+            session_dir,
+            headless=headless,
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/126.0.0.0 Safari/537.36"
             ),
             viewport={"width": 1280, "height": 720},
             permissions=["clipboard-read", "clipboard-write"],
+            args=["--disable-blink-features=AutomationControlled"],
         )
-        page = context.new_page()
 
-        # Bypass basic WebDriver detection
+        page = context.pages[0] if context.pages else context.new_page()
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-        # ── Login ─────────────────────────────────────────────────────────
-        log.info("Logging into LinkedIn...")
-        page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
-        log.info("Login page loaded. URL: %s", page.url)
-        time.sleep(3)
+        try:
+            _ensure_logged_in(page, email, password)
 
-        # Check if already logged in (session cookie from previous run)
-        log.info("Post-load URL: %s", page.url)
-        if not _is_logged_in(page.url) and "checkpoint" not in page.url:
-            log.info("Not logged in yet — filling credentials...")
-            email_sel = (
-                "input#username:visible, input#session_key:visible, "
-                "input[name='session_key']:visible, input[type='email']:visible, "
-                "input[autocomplete='username']:visible"
-            )
-            pass_sel = (
-                "input#password:visible, input#session_password:visible, "
-                "input[name='session_password']:visible, input[type='password']:visible, "
-                "input[autocomplete='current-password']:visible"
-            )
+            for keyword in keywords:
+                log.info("━" * 60)
+                log.info("Searching for: '%s'", keyword)
+                encoded = quote(keyword)
+                search_url = (
+                    f"https://www.linkedin.com/search/results/content/"
+                    f"?datePosted=%22past-24h%22&sortBy=%22date_posted%22&keywords={encoded}"
+                )
+                page.goto(search_url, wait_until="load")
+                time.sleep(4)
 
-            try:
-                page.wait_for_selector(email_sel, timeout=10000)
-                page.fill(email_sel, email)
-                log.info("Email filled.")
-                page.fill(pass_sel, password)
-                log.info("Password filled. Submitting...")
+                if not _is_logged_in(page.url):
+                    log.warning("LinkedIn session expired — re-logging in...")
+                    _ensure_logged_in(page, email, password)
+                    page.goto(search_url, wait_until="load")
+                    time.sleep(4)
 
-                # Click the sign-in button instead of pressing Enter (more reliable)
-                sign_in_btn = page.query_selector("button[type='submit']:visible, button[data-litms-control-urn*='login-submit']:visible")
-                if sign_in_btn:
-                    sign_in_btn.click()
-                    log.info("Clicked Sign In button.")
-                else:
-                    page.press(pass_sel, "Enter")
-                    log.info("Pressed Enter on password field.")
+                    if not _is_logged_in(page.url):
+                        log.error("Could not re-establish session. Skipping keyword '%s'.", keyword)
+                        capture_debug_state(page, keyword)
+                        results[keyword] = []
+                        continue
 
-                # Wait for navigation after login submit
+                post_selector = "div[role='listitem']:has([data-testid='expandable-text-box']), div.feed-shared-update-v2, div[role='listitem']"
+
                 try:
-                    page.wait_for_url(lambda url: "/login" not in url, timeout=30000)
-                    log.info("Navigated away from login. URL: %s", page.url)
+                    page.wait_for_selector(post_selector, timeout=15000)
                 except PlaywrightTimeout:
-                    log.warning("URL didn't change from /login within 30s. URL: %s", page.url)
-            except PlaywrightTimeout:
-                log.error("Could not find login form fields. Taking screenshot...")
-                page.screenshot(path=str(Path(__file__).parent / "login_error.png"))
-                browser.close()
-                sys.exit(1)
+                    pass
 
-        # Wait for feed/home or checkpoint — also check for feed elements in the DOM
-        log.info("Waiting for feed to load... Current URL: %s", page.url)
-        feed_loaded = False
-        for i in range(60):
-            current_url = page.url
-            if _is_logged_in(current_url) or "checkpoint" in current_url:
-                feed_loaded = True
-                log.info("Detected logged-in state at URL: %s (after %ds)", current_url, i)
-                break
-            # Fallback: check if feed elements exist in DOM even if URL is weird
-            if i > 5:
-                has_feed = page.query_selector("div.feed-shared-update-v2, [data-testid='home-feed'], .scaffold-layout, .global-nav")
-                if has_feed:
-                    feed_loaded = True
-                    log.info("Detected feed elements in DOM despite URL: %s (after %ds)", current_url, i)
-                    break
-            if i % 10 == 0:
-                log.info("  Still waiting... URL: %s (%ds elapsed)", current_url, i)
-            time.sleep(1)
+                post_elements = page.query_selector_all(post_selector)
+                log.info("Initially found %d post candidates for '%s'", len(post_elements), keyword)
 
-        if not feed_loaded:
-            log.error("Failed to reach feed/checkpoint after 60s. URL: %s", page.url)
-            try:
-                page.screenshot(path=str(Path(__file__).parent / "login_error.png"))
-                log.info("Screenshot saved to login_error.png")
-            except Exception:
-                pass
-            browser.close()
-            sys.exit(1)
+                if not post_elements:
+                    capture_debug_state(page, keyword)
+                    results[keyword] = []
+                    continue
 
-        # Handle CAPTCHA / security checkpoint
-        if "checkpoint" in page.url and not _is_logged_in(page.url):
-            log.warning(
-                "⚠️  Security checkpoint detected! "
-                "Please solve the CAPTCHA in the browser window..."
-            )
-            for _ in range(90):
-                if _is_logged_in(page.url):
-                    log.info("✅ Checkpoint cleared!")
-                    break
-                time.sleep(1)
-            else:
-                log.error("Checkpoint not cleared within 90s. Exiting.")
-                browser.close()
-                sys.exit(1)
+                seen_keys: set[str] = set()
+                collected_urls: list[str] = []
+                empty_rounds = 0
 
-        time.sleep(5)
-        log.info("✅ Login successful — feed loaded. URL: %s", page.url)
+                for scroll in range(max_scrolls + 1):
+                    elements = page.query_selector_all(post_selector)
+                    new_this_round = 0
 
-        # ── Search each keyword ───────────────────────────────────────────
-        for keyword in keywords:
-            log.info("━" * 60)
-            log.info("Searching for: '%s'", keyword)
-            encoded = quote(keyword)
-            search_url = (
-                f"https://www.linkedin.com/search/results/content/"
-                f"?datePosted=%22past-24h%22&keywords={encoded}"
-            )
-            page.goto(search_url)
-            page.wait_for_load_state("domcontentloaded")
+                    for element in elements:
+                        try:
+                            text_el = element.query_selector("[data-testid='expandable-text-box'], .feed-shared-text, div[class*='text-body']")
+                            raw_text = text_el.inner_text() if text_el else ""
+                            if not raw_text.strip() or len(raw_text.strip()) < 20:
+                                continue
 
-            post_selector = "div[role='listitem']:has([data-testid='expandable-text-box'])"
+                            key = raw_text.strip()[:200]
+                            if key in seen_keys:
+                                continue
+                            seen_keys.add(key)
 
-            try:
-                page.wait_for_selector(post_selector, timeout=15000)
-            except PlaywrightTimeout:
-                pass  # Fall through to check if any results loaded
+                            url = resolve_post_url(page, element)
+                            if not url or url in collected_urls:
+                                continue
 
-            post_elements = page.query_selector_all(post_selector)
-            log.info("Initially found %d posts for '%s'", len(post_elements), keyword)
+                            collected_urls.append(url)
+                            new_this_round += 1
 
-            if not post_elements:
-                capture_debug_state(page, keyword)
-                log.warning(
-                    "No results for '%s'. Debug screenshot saved. "
-                    "Common causes: selector changes, activity wall, or empty results.",
-                    keyword,
-                )
-                results[keyword] = []
-                continue
+                        except Exception as e:
+                            log.warning("Failed to extract post: %s", e)
 
-            # ── Scroll & collect ──────────────────────────────────────────
-            seen_keys: set[str] = set()
-            collected_urls: list[str] = []
-            empty_rounds = 0
+                    log.info(
+                        "  Keyword '%s' — scroll %d/%d: +%d new, %d total",
+                        keyword, scroll, max_scrolls, new_this_round, len(collected_urls),
+                    )
 
-            for scroll in range(max_scrolls + 1):
-                elements = page.query_selector_all(post_selector)
-                new_this_round = 0
-
-                for element in elements:
-                    try:
-                        text_el = element.query_selector("[data-testid='expandable-text-box']")
-                        raw_text = text_el.inner_text() if text_el else ""
-                        if not raw_text.strip():
-                            continue
-
-                        # Dedup key (first 200 chars of text)
-                        key = raw_text.strip()[:200]
-                        if key in seen_keys:
-                            continue
-                        seen_keys.add(key)
-
-                        # Get permalink via menu
-                        url = get_post_url_via_menu(page, element)
-                        if not url:
-                            log.debug("Could not get permalink for a '%s' post, skipping.", keyword)
-                            continue
-
-                        collected_urls.append(url)
-                        new_this_round += 1
-
-                    except Exception as e:
-                        log.warning("Failed to extract a post for '%s': %s", keyword, e)
-
-                log.info(
-                    "  Keyword '%s' — scroll %d/%d: +%d new, %d total",
-                    keyword, scroll, max_scrolls, new_this_round, len(collected_urls),
-                )
-
-                if len(collected_urls) >= max_posts:
-                    break
-
-                if new_this_round == 0:
-                    empty_rounds += 1
-                    if empty_rounds >= 4:
-                        log.info(
-                            "  No new posts after %d consecutive scrolls — stopping for '%s'.",
-                            empty_rounds, keyword,
-                        )
+                    if len(collected_urls) >= max_posts:
                         break
-                else:
-                    empty_rounds = 0
 
-                page.evaluate("window.scrollBy(0, 1400)")
-                time.sleep(scroll_delay)
+                    if new_this_round == 0:
+                        empty_rounds += 1
+                        if empty_rounds >= 5:
+                            log.info("  No new posts after %d consecutive scrolls.", empty_rounds)
+                            break
+                    else:
+                        empty_rounds = 0
 
-            log.info("Finished '%s' — %d URLs collected.", keyword, len(collected_urls))
-            results[keyword] = collected_urls
+                    try:
+                        if elements:
+                            elements[-1].scroll_into_view_if_needed()
+                    except Exception:
+                        pass
 
-            # Human-like delay between keyword searches
-            delay = random.randint(delay_range[0], delay_range[1]) / 1000.0
-            time.sleep(delay)
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.keyboard.press("PageDown")
+                    time.sleep(1)
+                    page.keyboard.press("PageDown")
+                    time.sleep(2)
 
-        browser.close()
+                    try:
+                        show_more = page.query_selector("button:has-text('Show more results'), button:has-text('See more posts')")
+                        if show_more and show_more.is_visible():
+                            show_more.click()
+                            time.sleep(2)
+                    except Exception:
+                        pass
 
-    # ── Write output file ─────────────────────────────────────────────────
+                log.info("Finished '%s' — %d valid post URLs collected.", keyword, len(collected_urls))
+                results[keyword] = collected_urls
+
+                delay = random.randint(delay_range[0], delay_range[1]) / 1000.0
+                time.sleep(delay)
+
+        finally:
+            context.close()
+
     total = sum(len(urls) for urls in results.values())
     log.info("━" * 60)
     log.info("Writing %d total URLs to %s", total, output_path)
 
-    # Deduplicate across all keywords
     all_urls_seen: set[str] = set()
-
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(f"# LinkedIn Post Links — Scraped {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"# Total unique links: {{PLACEHOLDER}}\n\n")
@@ -370,19 +447,11 @@ def run_scraper():
                     unique_count += 1
             f.write(f"# {keyword_count} links for this keyword\n\n")
 
-    # Rewrite the header with actual count
     content = output_path.read_text(encoding="utf-8")
     content = content.replace("{PLACEHOLDER}", str(unique_count))
     output_path.write_text(content, encoding="utf-8")
 
-    log.info("✅ Done! %d unique links saved to %s", unique_count, output_path)
-
-    # Summary
-    log.info("━" * 60)
-    log.info("SUMMARY")
-    for keyword, urls in results.items():
-        log.info("  %-40s  %d links", keyword, len(urls))
-    log.info("  %-40s  %d links", "TOTAL (deduplicated)", unique_count)
+    log.info("✅ Done! %d unique post links saved to %s", unique_count, output_path)
 
 
 if __name__ == "__main__":
